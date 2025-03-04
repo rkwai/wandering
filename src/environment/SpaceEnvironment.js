@@ -6,7 +6,6 @@ export class SpaceEnvironment {
         
         // Initialize space background effects
         this.createBackgroundStars();
-        this.createSpaceParticles();
     }
     
     createBackgroundStars() {
@@ -95,91 +94,7 @@ export class SpaceEnvironment {
         this.scene.add(this.backgroundStars);
     }
     
-    createSpaceParticles() {
-        // Create drifting dust particles for the space environment
-        const particleCount = 1000;
-        const particleGeometry = new THREE.BufferGeometry();
-        const particlePositions = new Float32Array(particleCount * 3);
-        
-        // Generate random particle positions in a large volume around the origin
-        const volume = 300; // Volume side length
-        for (let i = 0; i < particleCount; i++) {
-            particlePositions[i * 3] = (Math.random() - 0.5) * volume;
-            particlePositions[i * 3 + 1] = (Math.random() - 0.5) * volume;
-            particlePositions[i * 3 + 2] = (Math.random() - 0.5) * volume;
-        }
-        
-        // Set geometry attributes
-        particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-        
-        // Create a small particle texture
-        const particleCanvas = document.createElement('canvas');
-        particleCanvas.width = 16;
-        particleCanvas.height = 16;
-        const ctx = particleCanvas.getContext('2d');
-        
-        // Draw a soft gradient for the particle
-        const gradient = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
-        gradient.addColorStop(0, 'rgba(200, 200, 255, 0.5)');
-        gradient.addColorStop(0.5, 'rgba(150, 150, 255, 0.2)');
-        gradient.addColorStop(1, 'rgba(100, 100, 255, 0)');
-        
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 16, 16);
-        
-        // Create the particle texture
-        const particleTexture = new THREE.CanvasTexture(particleCanvas);
-        
-        // Create the particle material
-        const particleMaterial = new THREE.PointsMaterial({
-            size: 1.5,
-            map: particleTexture,
-            transparent: true,
-            opacity: 0.4,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
-        });
-        
-        // Create the particle system
-        this.spaceParticles = new THREE.Points(particleGeometry, particleMaterial);
-        this.spaceParticles.name = 'space-particles';
-        
-        // Store original positions for animation
-        this.particlePositions = particlePositions;
-        
-        // Add to scene
-        this.scene.add(this.spaceParticles);
-    }
-    
     update(delta) {
-        // Animate space particles
-        if (this.spaceParticles) {
-            // Slow drift of particles
-            const positions = this.spaceParticles.geometry.attributes.position.array;
-            
-            for (let i = 0; i < positions.length; i += 3) {
-                // Apply a small drift in a random direction
-                positions[i] += (Math.random() - 0.5) * 0.1;
-                positions[i + 1] += (Math.random() - 0.5) * 0.1;
-                positions[i + 2] += (Math.random() - 0.5) * 0.1;
-                
-                // Keep particles within bounds
-                const boundSize = 150;
-                if (Math.abs(positions[i]) > boundSize) {
-                    positions[i] *= -0.9;
-                }
-                if (Math.abs(positions[i + 1]) > boundSize) {
-                    positions[i + 1] *= -0.9;
-                }
-                if (Math.abs(positions[i + 2]) > boundSize) {
-                    positions[i + 2] *= -0.9;
-                }
-            }
-            
-            // Update geometry
-            this.spaceParticles.geometry.attributes.position.needsUpdate = true;
-        }
-        
         // Very slight rotation of background stars for subtle motion
         if (this.backgroundStars) {
             this.backgroundStars.rotation.y += delta * 0.001;
