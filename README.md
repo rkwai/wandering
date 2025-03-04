@@ -1,81 +1,94 @@
-# Wandering - 3D Procedural World Explorer
+# Cosmic Wanderer - 3D Space Simulation
 
-A beautiful 3D web application built with Three.js that lets you explore a procedurally generated world. The application features dynamic terrain generation, day/night cycles, and immersive first-person controls.
+A web-based 3D space simulator featuring realistic physics, procedural generation, and immersive gameplay. Built with Three.js and modern web technologies.
 
 ## Features
 
-- Procedurally generated 3D terrain using simplex noise
-- Dynamic chunk loading system for infinite exploration
-- Realistic day/night cycle with sun, moon, and stars
-- First-person controls for immersive exploration
-- Beautiful sky with dynamic lighting and colors
-- Water, mountains, forests, and more landscape features
-- Optimized for performance with chunk-based rendering
+- **Advanced Space Physics**: Realistic inertia, momentum, and drift provide an authentic space flight experience
+- **Procedural Universe**: Endless exploration with dynamically generated asteroids, debris fields, and cosmic phenomena
+- **Immersive Environment**: Stunning visuals including stars, nebulae, distant planets, and cosmic dust
+- **Responsive Controls**: Intuitive piloting system with multiple control schemes and camera views
+- **Collision System**: Realistic interaction with space objects including physics-based responses
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v14 or higher recommended)
-- npm (v6 or higher)
+Make sure you have [Node.js](https://nodejs.org/) installed (version 14.x or above recommended).
 
 ### Installation
 
-1. Clone this repository
-2. Navigate to the project directory
-3. Install dependencies:
+1. Clone the repository
+   ```
+   git clone https://github.com/yourusername/cosmic-wanderer.git
+   cd cosmic-wanderer
+   ```
 
-```bash
-npm install
+2. Install dependencies
+   ```
+   npm install
+   ```
+
+3. Start the development server
+   ```
+   npm start
+   ```
+
+4. Open your browser and navigate to `http://localhost:3000`
+
+### Production Build
+
+To create an optimized production build:
 ```
-
-### Running the Application
-
-Start the development server:
-
-```bash
-npm run dev
-```
-
-Then open your browser and go to `http://localhost:5173` to start exploring!
-
-### Building for Production
-
-Build optimized assets for production:
-
-```bash
 npm run build
-```
-
-Preview the production build:
-
-```bash
-npm run preview
 ```
 
 ## Controls
 
-### Movement
-- **W/A/S/D** or **Arrow Keys**: Move forward/left/backward/right
-- **Spacebar**: Jump
-- **Shift**: Run
+### Spaceship Movement
 
-### Camera
-- **Arrow Keys**: Look around (up/down/left/right)
-- **Trackpad**: Drag to look around
-- **Click**: Engage pointer lock for smoother camera control
+- **W** - Forward thrust
+- **S** - Brake/reverse thrust
+- **A/D** - Roll left/right
+- **Q/E** - Strafe left/right
+- **R/F** - Strafe up/down
+- **Arrow Up/Down** - Pitch control
+- **Arrow Left/Right** - Yaw control
+- **Shift** - Boost (2x speed)
+- **Space** - Afterburner (3x speed)
+- **Z** - Stabilize ship orientation
 
-The game supports both mouse, trackpad, and keyboard-only controls, so you can play comfortably with your preferred input method.
+### Camera Controls
+
+- **V** - Toggle between first-person and third-person views
+- **Mouse** - Look/control ship orientation (when pointer lock is active)
+- **Click on game window** - Engage pointer lock for mouse controls
+
+## Space Environment
+
+The simulator features a rich and diverse space environment:
+
+- **Asteroid Fields**: Navigate through dense asteroid fields with varying sizes and compositions
+- **Space Debris**: Encounter random space debris ranging from small particles to larger fragments
+- **Cosmic Phenomena**: Experience visually stunning space effects including nebulae and dust clouds
+- **Star Systems**: Distant stars with varying colors and intensities
+- **Deep Space**: Venture into the void with reduced debris density for high-speed travel
 
 ## Technical Details
 
-The application uses:
+- Built with **Three.js** for WebGL-based 3D rendering
+- Uses **SimplexNoise** for procedural generation
+- Implements custom physics for space flight mechanics
+- Optimized for performance with dynamic LOD (Level of Detail) system
+- Fully modular code architecture allowing for easy extension
 
-- Three.js for 3D rendering
-- Simplex Noise for procedural generation
-- Vite for fast development and builds
+## Planned Features
 
-The world is generated in chunks, with new terrain being created as you explore. Only the chunks near the player are rendered to maintain performance. The terrain height is determined using multiple layers of simplex noise to create natural-looking landscapes.
+- Upgradeable spacecraft with different flight characteristics
+- Advanced weapon systems for combat scenarios
+- Mining and resource collection mechanics
+- Multiplayer capabilities
+- Dynamic mission system
 
 ## License
 
@@ -83,5 +96,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments
 
-- Three.js team for their amazing 3D library
-- simplex-noise for the procedural generation algorithms 
+- Three.js community for their excellent documentation and examples
+- Contributors to the SimplexNoise implementation
+- All testers who provided valuable feedback 

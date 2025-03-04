@@ -4,7 +4,7 @@ import { createNoise2D } from 'simplex-noise';
 
 import { WorldGenerator } from './world/WorldGenerator.js';
 import { Player } from './entities/Player.js';
-import { Sky } from './environment/Sky.js';
+import { SpaceEnvironment } from './environment/SpaceEnvironment.js';
 
 class Game {
     constructor() {
@@ -23,16 +23,19 @@ class Game {
     initThree() {
         // Create scene
         this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.FogExp2(0x89b2eb, 0.002);
+        this.scene.background = new THREE.Color(0x000000); // Black background for space
+        
+        // No fog in space
+        this.scene.fog = null;
 
         // Create camera
         this.camera = new THREE.PerspectiveCamera(
             75, 
             window.innerWidth / window.innerHeight, 
             0.1, 
-            1000
+            20000 // Much larger far plane for space distances
         );
-        this.camera.position.set(0, 10, 0);
+        this.camera.position.set(0, 0, 0);
         
         // Create renderer
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -42,29 +45,29 @@ class Game {
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.getElementById('game-container').appendChild(this.renderer.domElement);
         
-        // Add ambient light
-        const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
+        // Add ambient light (dim for space)
+        const ambientLight = new THREE.AmbientLight(0x202040, 0.5);
         this.scene.add(ambientLight);
         
-        // Add directional light (sun)
-        this.directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        this.directionalLight.position.set(100, 100, 50);
+        // Add directional light (distant sun)
+        this.directionalLight = new THREE.DirectionalLight(0xffffcc, 0.8);
+        this.directionalLight.position.set(-5000, 3000, -8000);
         this.directionalLight.castShadow = true;
         
-        // Optimize shadow settings
+        // Set up shadow properties
         this.directionalLight.shadow.mapSize.width = 2048; 
         this.directionalLight.shadow.mapSize.height = 2048;
         this.directionalLight.shadow.camera.near = 0.5;
-        this.directionalLight.shadow.camera.far = 500;
-        this.directionalLight.shadow.camera.left = -100;
-        this.directionalLight.shadow.camera.right = 100;
-        this.directionalLight.shadow.camera.top = 100;
-        this.directionalLight.shadow.camera.bottom = -100;
+        this.directionalLight.shadow.camera.far = 15000;
+        this.directionalLight.shadow.camera.left = -1000;
+        this.directionalLight.shadow.camera.right = 1000;
+        this.directionalLight.shadow.camera.top = 1000;
+        this.directionalLight.shadow.camera.bottom = -1000;
         
         this.scene.add(this.directionalLight);
         
-        // Add beautiful sky
-        this.sky = new Sky(this.scene);
+        // Add space environment effects (stars, nebulae, etc.)
+        this.spaceEnvironment = new SpaceEnvironment(this.scene);
     }
 
     initWorld() {
@@ -74,9 +77,6 @@ class Game {
 
     initPlayer() {
         this.player = new Player(this.camera, this.scene);
-        
-        // Set initial player position
-        this.player.position.y = 10; // Start slightly above ground
     }
 
     initEventListeners() {
@@ -111,9 +111,14 @@ class Game {
             this.worldGenerator.updateChunks(this.player.position);
         }
         
-        // Update sky
-        if (this.sky) {
-            this.sky.update(delta);
+        // Update space environment
+        if (this.spaceEnvironment) {
+            this.spaceEnvironment.update(delta);
+        }
+        
+        // Update celestial bodies
+        if (this.worldGenerator && this.worldGenerator.celestialBodies) {
+            this.worldGenerator.celestialBodies.update(delta);
         }
         
         // Render scene
