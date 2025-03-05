@@ -545,8 +545,8 @@ export class MissileManager {
             // Create or update missile bounding box
             missile.userData.boundingBox.setFromObject(missile);
             
-            // Add a small padding to the missile bounding box for better collision detection
-            const missilePadding = 1.0; // Increased padding for missiles
+            // Add minimal padding to the missile bounding box for more precise collision detection
+            const missilePadding = 0.5; // Reduced padding for more precise hits
             missile.userData.boundingBox.min.subScalar(missilePadding);
             missile.userData.boundingBox.max.addScalar(missilePadding);
             

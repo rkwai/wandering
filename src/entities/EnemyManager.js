@@ -80,7 +80,7 @@ export class EnemyManager {
     }
     
     /**
-     * Create initial asteroids for immediate gameplay
+     * Create the initial set of asteroids
      */
     createInitialAsteroids() {
         const count = 5;
@@ -89,9 +89,8 @@ export class EnemyManager {
         this.pendingAsteroidLoads += count;
         
         for (let i = 0; i < count; i++) {
-            // Asteroids start closer to the player's view
-            // Player is at x=-40, camera looks ahead, so spawn in visible range
-            const xPos = Math.random() * 100 + 50; // 50-150 units from right (closer to player view)
+            // Position asteroids off-screen to the right, so they move into view
+            const xPos = Math.random() * 100 + 180; // 180-280 units from right (off-screen)
             
             // Varied vertical positions, but keep within likely visible area
             const yPos = (Math.random() - 0.5) * 80; // Smaller height coverage to ensure visibility
@@ -351,8 +350,8 @@ export class EnemyManager {
         // Get configuration for this enemy type
         const config = this.enemyTypes[type];
         
-        // For side-scrolling, position enemies closer to the player's view
-        const xPos = Math.random() * 100 + 50; // 50-150 units from right (closer to player view)
+        // Position asteroids off-screen to the right so they move into view
+        const xPos = Math.random() * 100 + 150; // 150-250 units from right (off-screen)
         const yPos = (Math.random() - 0.5) * 80; // Smaller height coverage to ensure visibility
         const position = new THREE.Vector3(xPos, yPos, 0);
         
@@ -437,8 +436,8 @@ export class EnemyManager {
         // Spawn enemies in a formation
         for (let i = 0; i < waveSize; i++) {
             // Create a formation pattern - line, V-shape, etc.
-            // Position closer to the player's view
-            const xPos = Math.random() * 80 + 50; // 50-130 units from right (closer to player view)
+            // Position off-screen to the right
+            const xPos = Math.random() * 80 + 200; // 200-280 units from right (off-screen)
             const yPos = (Math.random() - 0.5) * 70; // In formation, but within visible area
             const position = new THREE.Vector3(xPos, yPos, 0);
             
@@ -510,10 +509,13 @@ export class EnemyManager {
         
         // In the future, this would spawn a boss enemy
         // For now, just spawn a bigger, tougher asteroid
-        const xPos = 100; // Start closer to player view
+        const xPos = 250; // Start off-screen to the right
         const yPos = 0;   // Center
         const position = new THREE.Vector3(xPos, yPos, 0);
         const velocity = new THREE.Vector3(-8, 0, 0); // Slower but tougher
+        
+        // Log the boss spawn position
+        debugHelper.log(`EnemyManager: Spawning boss asteroid at position (${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)})`);
         
         // Increment pending loads counter
         this.pendingAsteroidLoads++;

@@ -201,8 +201,8 @@ export class Asteroid {
         // Compute the bounding box in world space
         this.boundingBox.setFromObject(this.collisionMesh);
         
-        // Add padding for more reliable collision
-        const padding = 1.0 * this.scale; // Increased padding
+        // Add minimal padding for more precise collision
+        const padding = 0.2 * this.scale; // Reduced padding for more precise hits
         this.boundingBox.min.subScalar(padding);
         this.boundingBox.max.addScalar(padding);
         
@@ -284,8 +284,9 @@ export class Asteroid {
         // Update the bounding box in world space
         this.boundingBox.setFromObject(this.collisionMesh);
         
-        // Maintain padding
-        const padding = 1.0 * this.scale; // Increased padding for better collision detection
+        // Use a much smaller padding for more precise collision detection
+        // This will make missiles hit closer to the actual visual model
+        const padding = 0.2 * this.scale; // Reduced from 1.0 to 0.2
         this.boundingBox.min.subScalar(padding);
         this.boundingBox.max.addScalar(padding);
         

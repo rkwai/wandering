@@ -754,15 +754,16 @@ export class Player {
                             }
                             
                             if (asteroid.boundingBox) {
-                                // Expand the bounding box slightly for more reliable collision detection
-                                const expandedBox = asteroid.boundingBox.clone();
-                                expandedBox.expandByScalar(3.0); // Increase collision area
+                                // Use the asteroid's bounding box as is, without expansion
+                                // This will make missiles hit closer to the visual model
+                                const asteroidBox = asteroid.boundingBox;
                                 
-                                // Shrink missile bounding box for precision
+                                // Shrink missile bounding box slightly for more precision
                                 const missileBox = boundingBox.clone();
+                                // No expansion of missile box for precise collision
                                 
-                                // Check for intersection with expanded box
-                                if (missileBox.intersectsBox(expandedBox)) {
+                                // Check for intersection with asteroid box
+                                if (missileBox.intersectsBox(asteroidBox)) {
                                     collisionFound = true;
                                     
                                     // Calculate impact point at the center of the intersection
@@ -770,7 +771,7 @@ export class Player {
                                     
                                     // Calculate intersection of the two boxes
                                     const intersection = new THREE.Box3();
-                                    intersection.copy(missileBox).intersect(expandedBox);
+                                    intersection.copy(missileBox).intersect(asteroidBox);
                                     intersection.getCenter(impactPoint);
                                     
                                     // Log the collision
