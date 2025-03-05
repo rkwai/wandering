@@ -709,7 +709,7 @@ export class Player {
     }
     
     /**
-     * Updates all active missiles
+     * Update missiles and check for collisions
      * @param {number} delta - Time step in seconds
      */
     updateMissiles(delta) {
@@ -720,39 +720,86 @@ export class Player {
                 let collisionFound = false;
                 let collisionResult = null;
                 
+                // Debug logging for missile position (occasionally)
+                if (Math.random() < 0.01) {
+                    debugHelper.log(`Player: Missile at position (${missile.position.x.toFixed(1)}, ${missile.position.y.toFixed(1)}, ${missile.position.z.toFixed(1)})`);
+                }
+                
+                // Direct check for objects with isAsteroid flag (optimization)
+                const potentialTargets = [];
                 this.scene.traverse((object) => {
-                    if (!collisionFound && object.userData && object.userData.isAsteroid) {
-                        try {
-                            // Get the asteroid reference
-                            const asteroid = object.userData.asteroidRef;
+                    if (object.userData && object.userData.isAsteroid) {
+                        potentialTargets.push(object);
+                    }
+                });
+                
+                // Log the number of potential targets occasionally
+                if (Math.random() < 0.01) {
+                    debugHelper.log(`Player: Found ${potentialTargets.length} potential asteroid targets`);
+                }
+                
+                // Check each potential target
+                for (const object of potentialTargets) {
+                    if (collisionFound) break; // Stop if we already found a collision
+                    
+                    try {
+                        // Get the asteroid reference
+                        const asteroid = object.userData.asteroidRef;
+                        
+                        // Only check collision if asteroid is fully loaded
+                        if (asteroid && asteroid.isModelLoaded) {
+                            // Ensure bounding box is up to date
+                            if (!asteroid.boundingBox) {
+                                asteroid.updateBoundingBox();
+                            }
                             
-                            // Only check collision if asteroid is fully loaded and has a valid bounding box
-                            if (asteroid && asteroid.isModelLoaded && asteroid.boundingBox) {
-                                // Check for intersection
-                                if (boundingBox.intersectsBox(asteroid.boundingBox)) {
+                            if (asteroid.boundingBox) {
+                                // Expand the bounding box slightly for more reliable collision detection
+                                const expandedBox = asteroid.boundingBox.clone();
+                                expandedBox.expandByScalar(3.0); // Increase collision area
+                                
+                                // Shrink missile bounding box for precision
+                                const missileBox = boundingBox.clone();
+                                
+                                // Check for intersection with expanded box
+                                if (missileBox.intersectsBox(expandedBox)) {
                                     collisionFound = true;
                                     
                                     // Calculate impact point at the center of the intersection
                                     const impactPoint = new THREE.Vector3();
-                                    boundingBox.getCenter(impactPoint);
                                     
-                                    // Remove the asteroid
-                                    if (asteroid) {
-                                        asteroid.remove();
+                                    // Calculate intersection of the two boxes
+                                    const intersection = new THREE.Box3();
+                                    intersection.copy(missileBox).intersect(expandedBox);
+                                    intersection.getCenter(impactPoint);
+                                    
+                                    // Log the collision
+                                    debugHelper.log(`Player: COLLISION! Missile hit asteroid at position (${impactPoint.x.toFixed(1)}, ${impactPoint.y.toFixed(1)}, ${impactPoint.z.toFixed(1)})`);
+                                    
+                                    // Call the asteroid's handleHit method if it exists
+                                    if (typeof asteroid.handleHit === 'function') {
+                                        asteroid.handleHit();
                                     }
                                     
+                                    // Remove the asteroid
+                                    asteroid.remove();
+                                    
+                                    debugHelper.log("Player: Asteroid destroyed by missile");
+                                    
+                                    // Set collision result to return to the missile manager
                                     collisionResult = {
                                         position: impactPoint,
                                         object: asteroid
                                     };
                                 }
                             }
-                        } catch (error) {
-                            console.error("Error in missile collision detection:", error);
                         }
+                    } catch (error) {
+                        console.error("Error in missile collision detection:", error);
                     }
-                });
+                }
                 
+                // Return the collision result to the missile manager
                 return collisionResult;
             });
         }

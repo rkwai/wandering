@@ -277,9 +277,118 @@ export class MissileManager {
      * Load the explosion model
      */
     loadExplosionModel() {
-        // We no longer create a fallback explosion model
-        this.explosionModel = null;
-        debugHelper.log("Explosion model loading skipped - no fallbacks used");
+        debugHelper.log("MissileManager: Loading explosion model");
+        
+        // Define potential model paths to try
+        const explosionModelPaths = [
+            'models/spaceships/impact_explosion_no__0305031045.glb',
+            'models/effects/impact_explosion_no__0305031045.glb',
+            'models/effects/explosion.glb'
+        ];
+        
+        // Try to load from the first path
+        this.tryLoadExplosionModel(explosionModelPaths, 0);
+    }
+    
+    /**
+     * Try to load the explosion model from a list of paths
+     * @param {Array} paths - List of paths to try
+     * @param {number} index - Current path index
+     */
+    tryLoadExplosionModel(paths, index) {
+        if (index >= paths.length) {
+            debugHelper.log("MissileManager: Failed to load explosion model from all paths", "error");
+            return;
+        }
+        
+        const path = paths[index];
+        debugHelper.log(`MissileManager: Trying to load explosion model from path: ${path}`);
+        
+        this.modelLoader.loadModel(path, 
+            (model) => {
+                debugHelper.log(`MissileManager: Explosion model loaded successfully from ${path}`);
+                this.explosionModel = model;
+                
+                // Check if model is null or empty
+                if (!model) {
+                    debugHelper.log("MissileManager: Loaded explosion model is null", "error");
+                    this.tryLoadExplosionModel(paths, index + 1);
+                    return;
+                }
+                
+                // Log model structure
+                debugHelper.log(`MissileManager: Explosion model structure: ${model.children.length} children`);
+                
+                // Set up the explosion model
+                model.visible = false; // Hide the template model
+                
+                // Make explosion materials emissive and bright
+                model.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        // Log mesh found
+                        debugHelper.log(`MissileManager: Found mesh in explosion model: ${child.name}`);
+                        
+                        // Clone the material to avoid sharing
+                        child.material = child.material.clone();
+                        
+                        // Make it bright and glowing
+                        child.material.emissive = new THREE.Color(0xffaa00);
+                        child.material.emissiveIntensity = 2.0;
+                        
+                        // Enable transparency for fading
+                        child.material.transparent = true;
+                        child.material.opacity = 1.0;
+                        
+                        // Add blending for better visual effect
+                        child.material.blending = THREE.AdditiveBlending;
+                    }
+                });
+                
+                // Add model to scene (invisible) to ensure it's loaded properly
+                this.scene.add(model);
+                
+                // Create object pool for explosions
+                this.explosionPool = new ObjectPool(
+                    // Factory function to create new explosions
+                    () => {
+                        const explosion = this.explosionModel.clone();
+                        explosion.userData = {
+                            lifetime: 0,
+                            maxLifetime: 1.0, // 1 second explosion
+                            scale: 2.0 // Larger base scale
+                        };
+                        return explosion;
+                    },
+                    // Reset function
+                    (explosion) => {
+                        explosion.visible = false;
+                        explosion.userData.lifetime = 0;
+                        explosion.position.set(0, 0, 0);
+                        explosion.scale.set(1, 1, 1);
+                        // Reset materials
+                        explosion.traverse(child => {
+                            if (child.isMesh && child.material) {
+                                child.material.opacity = 1.0;
+                                child.material.transparent = false;
+                                child.material.emissiveIntensity = 2.0;
+                            }
+                        });
+                    },
+                    // Initial pool size
+                    10 // Pre-create 10 explosions
+                );
+                
+                // Initialize explosions array
+                this.activeExplosions = [];
+                
+                debugHelper.log("MissileManager: Explosion system initialized");
+            }, 
+            (error) => {
+                debugHelper.log(`MissileManager: Failed to load explosion model from ${path}: ${error}`, "error");
+                // Try the next path
+                this.tryLoadExplosionModel(paths, index + 1);
+            }
+        );
     }
     
     /**
@@ -287,17 +396,135 @@ export class MissileManager {
      * @param {THREE.Vector3} position - The position to create the explosion at
      */
     createExplosion(position) {
-        // Just play the sound, no visual effect
+        // Play the sound effect
         this.playCollisionSound();
-        debugHelper.log("Explosion created at position: " + position.x.toFixed(2) + ", " + position.y.toFixed(2) + ", " + position.z.toFixed(2));
+        
+        debugHelper.log(`MissileManager: Creating explosion at position: ${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)}`);
+        
+        // If we have an explosion model and pool, create a visual explosion
+        if (this.explosionModel && this.explosionPool) {
+            try {
+                // Get an explosion from the pool
+                const explosion = this.explosionPool.get();
+                
+                // Position the explosion
+                explosion.position.copy(position);
+                
+                // Random size variation
+                const scale = 3.0 + Math.random() * 1.0; // Much larger explosion for visibility
+                explosion.scale.set(scale, scale, scale);
+                
+                // Store original scale for animation
+                explosion.userData.scale = scale;
+                
+                // Reset lifetime
+                explosion.userData.lifetime = 0;
+                
+                // Make it visible
+                explosion.visible = true;
+                
+                // Ensure all materials are visible and bright
+                explosion.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        // Make it fully opaque
+                        child.material.opacity = 1.0;
+                        child.material.transparent = true;
+                        
+                        // Make it extra bright
+                        child.material.emissiveIntensity = 3.0;
+                        
+                        // Use additive blending for better effect
+                        child.material.blending = THREE.AdditiveBlending;
+                    }
+                });
+                
+                // Add to scene
+                this.scene.add(explosion);
+                
+                // Add to active explosions
+                this.activeExplosions.push(explosion);
+                
+                debugHelper.log(`MissileManager: Visual explosion created, ${this.activeExplosions.length} active explosions`);
+            } catch (error) {
+                debugHelper.log(`MissileManager: Error creating explosion: ${error}`, "error");
+            }
+        } else {
+            debugHelper.log("MissileManager: No explosion model available, skipping visual effect");
+        }
     }
     
     /**
-     * Update all active missiles
+     * Update all active explosions
      * @param {number} delta - Time step in seconds
-     * @param {Function} collisionCallback - Callback when a missile collides with something
+     */
+    updateExplosions(delta) {
+        if (!this.activeExplosions || this.activeExplosions.length === 0) return;
+        
+        // Debug logging for active explosions (limit frequency)
+        if (Math.random() < 0.01) {
+            debugHelper.log(`MissileManager: Updating ${this.activeExplosions.length} active explosions`);
+        }
+        
+        for (let i = this.activeExplosions.length - 1; i >= 0; i--) {
+            const explosion = this.activeExplosions[i];
+            
+            // Update lifetime
+            explosion.userData.lifetime += delta;
+            
+            // Check if explosion is finished
+            if (explosion.userData.lifetime >= explosion.userData.maxLifetime) {
+                // Remove from scene
+                this.scene.remove(explosion);
+                
+                // Return to pool
+                this.explosionPool.release(explosion);
+                
+                // Remove from active list
+                this.activeExplosions.splice(i, 1);
+                debugHelper.log(`MissileManager: Explosion removed, ${this.activeExplosions.length} remaining`);
+                continue;
+            }
+            
+            // Calculate progress (0 to 1)
+            const progress = explosion.userData.lifetime / explosion.userData.maxLifetime;
+            
+            // Scale up as explosion progresses
+            const scaleMultiplier = 1.0 + progress * 1.0; // More dramatic scaling
+            const currentScale = explosion.userData.scale * scaleMultiplier;
+            explosion.scale.set(currentScale, currentScale, currentScale);
+            
+            // Fade out towards the end
+            explosion.traverse(child => {
+                if (child.isMesh && child.material) {
+                    // Ensure transparency is enabled when we start fading
+                    if (progress > 0.5) {
+                        child.material.transparent = true;
+                        child.material.opacity = 1.0 - ((progress - 0.5) * 2); // Start fading at 50% lifetime
+                    }
+                    
+                    // Adjust emission intensity to create pulsing effect
+                    const pulseRate = 10; // Higher number = faster pulse
+                    const pulseAmount = 0.5; // Amount of pulsing (0-1)
+                    const basePulse = 1.0 - (progress * 0.5); // Gradually reduce base intensity
+                    const pulseFactor = basePulse * (1.0 + Math.sin(progress * pulseRate) * pulseAmount);
+                    
+                    child.material.emissiveIntensity = pulseFactor * 2.0;
+                }
+            });
+        }
+    }
+    
+    /**
+     * Update all missiles and check for collisions
+     * @param {number} delta - Time step in seconds
+     * @param {Function} collisionCallback - Callback for collision detection
      */
     update(delta, collisionCallback) {
+        // Debug logging for missile count (occasionally)
+        if (Math.random() < 0.01) {
+            debugHelper.log(`MissileManager: Updating ${this.missiles.length} missiles`);
+        }
+        
         // Process each missile
         for (let i = this.missiles.length - 1; i >= 0; i--) {
             const missile = this.missiles[i];
@@ -319,7 +546,7 @@ export class MissileManager {
             missile.userData.boundingBox.setFromObject(missile);
             
             // Add a small padding to the missile bounding box for better collision detection
-            const missilePadding = 0.5; // Fixed padding for missiles
+            const missilePadding = 1.0; // Increased padding for missiles
             missile.userData.boundingBox.min.subScalar(missilePadding);
             missile.userData.boundingBox.max.addScalar(missilePadding);
             
@@ -329,6 +556,7 @@ export class MissileManager {
                 missile.position.x < -1000) {
                 
                 // Remove missile
+                this.scene.remove(missile);
                 this.missiles.splice(i, 1);
                 this.missilePool.release(missile);
                 continue;
@@ -339,14 +567,26 @@ export class MissileManager {
                 const collisionResult = collisionCallback(missile, missile.userData.boundingBox);
                 if (collisionResult) {
                     // Missile hit something, remove it
+                    debugHelper.log(`MissileManager: Missile collision detected, removing missile`);
+                    this.scene.remove(missile);
                     this.missiles.splice(i, 1);
                     this.missilePool.release(missile);
                     
                     // Create explosion at impact point
-                    this.createExplosion(collisionResult.position);
+                    if (collisionResult.position) {
+                        debugHelper.log(`MissileManager: Creating explosion at impact point (${collisionResult.position.x.toFixed(1)}, ${collisionResult.position.y.toFixed(1)}, ${collisionResult.position.z.toFixed(1)})`);
+                        this.createExplosion(collisionResult.position);
+                    } else {
+                        // Fallback to missile position if no impact point provided
+                        debugHelper.log(`MissileManager: No impact point provided, using missile position for explosion`);
+                        this.createExplosion(missile.position.clone());
+                    }
                 }
             }
         }
+        
+        // Update active explosions
+        this.updateExplosions(delta);
     }
     
     /**

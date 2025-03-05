@@ -62,26 +62,23 @@ export class Asteroid {
         // Create container for the asteroid model
         this.asteroidGroup = new THREE.Group();
         this.asteroidGroup.position.copy(this.position);
-        
-        // Add userData for collision handling
-        this.asteroidGroup.userData = {
-            debrisType: 'asteroid',
-            mass: this.mass,
-            parent: this,
-            isAsteroid: false // Will be set to true once model is loaded
-        };
+        this.asteroidGroup.rotation.copy(this.rotation);
         
         // Initialize flags and properties
         this.markedForRemoval = false;
         this.isModelLoaded = false;
-        this.boundingBox = null; // Will be created when model is loaded
+        this.model = null;
+        this.boundingBox = null;
+        this.boundingSphere = null;
         this.collisionMesh = null;
+        
+        // Create lights but don't add them yet (will be added when model is loaded)
+        this.createAsteroidLight();
         
         // Load the asteroid model
         this.loadModel();
         
-        // Create lights but don't add them yet
-        this.createAsteroidLight();
+        debugHelper.log(`Asteroid: Created at position (${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}, ${this.position.z.toFixed(1)})`);
     }
     
     /**
@@ -147,18 +144,22 @@ export class Asteroid {
                 // Ensure material is visible
                 child.material.transparent = false;
                 child.material.opacity = 1.0;
-                
-                // Store the mesh for collision detection
-                if (!this.collisionMesh) {
-                    this.collisionMesh = child;
-                }
             }
         });
         
         // Add to the asteroid group
         this.asteroidGroup.add(this.model);
         
-        // Now that model is loaded, add the group to the scene
+        // Set up collision mesh (use the model itself for collision)
+        this.collisionMesh = this.model;
+        
+        // Set up user data for the asteroid group
+        this.asteroidGroup.userData = {
+            isAsteroid: true,
+            asteroidRef: this
+        };
+        
+        // Add the asteroid group to the scene
         this.scene.add(this.asteroidGroup);
         
         // Add the lights now that the model is loaded
@@ -167,16 +168,11 @@ export class Asteroid {
             this.asteroidGroup.add(this.lights.secondary);
         }
         
-        // Create initial bounding box
-        this.boundingBox = new THREE.Box3();
-        this.updateBoundingBox();
-        
-        // Mark this as an asteroid for collision handling only after model is loaded
-        this.asteroidGroup.userData.isAsteroid = true;
-        this.asteroidGroup.userData.asteroidRef = this;
-        
-        // Set loaded flag
+        // Mark as loaded
         this.isModelLoaded = true;
+        
+        // Initialize collision detection
+        this.initializeCollision();
         
         // Log the asteroid's position for debugging
         debugHelper.log(`Asteroid: Model setup complete at position (${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}, ${this.position.z.toFixed(1)})`);
@@ -191,7 +187,10 @@ export class Asteroid {
      * Initialize or reinitialize the asteroid's collision detection
      */
     initializeCollision() {
-        if (!this.collisionMesh) return;
+        if (!this.collisionMesh) {
+            debugHelper.log("Asteroid: Cannot initialize collision - no collision mesh");
+            return;
+        }
 
         // Create new bounding box
         this.boundingBox = new THREE.Box3();
@@ -203,13 +202,18 @@ export class Asteroid {
         this.boundingBox.setFromObject(this.collisionMesh);
         
         // Add padding for more reliable collision
-        const padding = 0.1 * this.scale;
+        const padding = 1.0 * this.scale; // Increased padding
         this.boundingBox.min.subScalar(padding);
         this.boundingBox.max.addScalar(padding);
         
         // Create bounding sphere from box
         this.boundingSphere = new THREE.Sphere();
         this.boundingBox.getBoundingSphere(this.boundingSphere);
+        
+        debugHelper.log(`Asteroid: Collision initialized with box size: ${
+            (this.boundingBox.max.x - this.boundingBox.min.x).toFixed(1)} x ${
+            (this.boundingBox.max.y - this.boundingBox.min.y).toFixed(1)} x ${
+            (this.boundingBox.max.z - this.boundingBox.min.z).toFixed(1)}`);
     }
     
     /**
@@ -258,7 +262,21 @@ export class Asteroid {
      * Update the bounding box to match current position and rotation
      */
     updateBoundingBox() {
-        if (!this.collisionMesh || !this.boundingBox || !this.isModelLoaded) return;
+        if (!this.collisionMesh) {
+            debugHelper.log("Asteroid: Cannot update bounding box - no collision mesh");
+            return;
+        }
+        
+        if (!this.isModelLoaded) {
+            debugHelper.log("Asteroid: Cannot update bounding box - model not loaded");
+            return;
+        }
+        
+        // Create bounding box if it doesn't exist
+        if (!this.boundingBox) {
+            this.boundingBox = new THREE.Box3();
+            debugHelper.log("Asteroid: Created new bounding box");
+        }
         
         // Update the collision mesh's world matrix
         this.collisionMesh.updateMatrixWorld(true);
@@ -267,13 +285,24 @@ export class Asteroid {
         this.boundingBox.setFromObject(this.collisionMesh);
         
         // Maintain padding
-        const padding = 0.1 * this.scale;
+        const padding = 1.0 * this.scale; // Increased padding for better collision detection
         this.boundingBox.min.subScalar(padding);
         this.boundingBox.max.addScalar(padding);
         
         // Update bounding sphere
-        if (this.boundingSphere) {
-            this.boundingBox.getBoundingSphere(this.boundingSphere);
+        if (!this.boundingSphere) {
+            this.boundingSphere = new THREE.Sphere();
+            debugHelper.log("Asteroid: Created new bounding sphere");
+        }
+        
+        this.boundingBox.getBoundingSphere(this.boundingSphere);
+        
+        // Occasionally log bounding box size for debugging
+        if (Math.random() < 0.01) {
+            debugHelper.log(`Asteroid: Updated bounding box at (${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}, ${this.position.z.toFixed(1)}) with size: ${
+                (this.boundingBox.max.x - this.boundingBox.min.x).toFixed(1)} x ${
+                (this.boundingBox.max.y - this.boundingBox.min.y).toFixed(1)} x ${
+                (this.boundingBox.max.z - this.boundingBox.min.z).toFixed(1)}`);
         }
     }
     
@@ -386,6 +415,49 @@ export class Asteroid {
             this.rotationSpeed.y += (Math.random() - 0.5) * 0.01;
             this.rotationSpeed.z += (Math.random() - 0.5) * 0.01;
         }
+    }
+    
+    /**
+     * Handle this asteroid being hit by a missile
+     */
+    handleHit() {
+        debugHelper.log(`Asteroid: Hit at position (${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}, ${this.position.z.toFixed(1)})`);
+        
+        // Emit game event for scoring and effects
+        if (window.gameEvents) {
+            window.gameEvents.emit('enemyHit', {
+                type: 'asteroid',
+                position: this.position.clone(),
+                size: this.scale
+            });
+        }
+        
+        // Apply visual effect if needed
+        if (this.model) {
+            // Flash the asteroid with a bright color before removal
+            this.model.traverse(child => {
+                if (child.isMesh && child.material) {
+                    // Save original emissive if needed for reset
+                    if (!child.userData.originalEmissive) {
+                        child.userData.originalEmissive = child.material.emissive.clone();
+                        child.userData.originalEmissiveIntensity = child.material.emissiveIntensity;
+                    }
+                    
+                    // Set to bright white/yellow flash
+                    child.material.emissive = new THREE.Color(0xffff00);
+                    child.material.emissiveIntensity = 3.0;
+                }
+            });
+        }
+        
+        // Increase the lights intensity for a flash effect
+        if (this.lights) {
+            if (this.lights.main) this.lights.main.intensity *= 3;
+            if (this.lights.secondary) this.lights.secondary.intensity *= 3;
+        }
+        
+        // Log successful hit
+        debugHelper.log("Asteroid: Hit effect applied");
     }
     
     /**
