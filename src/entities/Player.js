@@ -99,6 +99,7 @@ export class Player {
         // Load models
         this.loadShipModel();
         this.loadMissileModel();
+        this.loadImpactExplosionModel();
         
         // Explosion tracker
         this.explosions = [];
@@ -347,12 +348,10 @@ export class Player {
         // Store references to bound methods to be able to remove them later
         this.boundKeyDown = this.handleKeyDown.bind(this);
         this.boundKeyUp = this.handleKeyUp.bind(this);
-        this.boundMouseMove = this.handleMouseMove.bind(this);
         
         // Add event listeners
         document.addEventListener('keydown', this.boundKeyDown);
         document.addEventListener('keyup', this.boundKeyUp);
-        document.addEventListener('mousemove', this.boundMouseMove);
         
         // Initialize input state
         this.inputControls = {
@@ -367,15 +366,6 @@ export class Player {
         this.keys = this.inputControls;
         
         console.log("Input listeners set up successfully");
-    }
-    
-    /**
-     * Handle mouse movement
-     * @param {number} movementX - Mouse X movement
-     * @param {number} movementY - Mouse Y movement
-     */
-    handleMouseMove(movementX, movementY) {
-        // Not used in side-scroller mode
     }
     
     /**
@@ -461,15 +451,7 @@ export class Player {
                 this.inputControls.shoot = false;
                 this.keys.shoot = false;
                 break;
-            case 'KeyV':
-                this.toggleViewMode();
-                break;
         }
-    }
-    
-    toggleViewMode() {
-        // Toggle between first and third person views
-        this.viewMode = this.viewMode === 'thirdPerson' ? 'firstPerson' : 'thirdPerson';
     }
     
     /**
@@ -864,17 +846,110 @@ export class Player {
             // Update missile lifetime
             missile.lifeTime += delta;
             
+            // Check for collisions with asteroids
+            let missileBox = new THREE.Box3().setFromObject(missile.model);
+            
+            this.scene.traverse((object) => {
+                if (object.userData && object.userData.isAsteroid) {
+                    try {
+                        // Get the asteroid's bounding box
+                        const asteroidBox = new THREE.Box3().setFromObject(object);
+                        
+                        // Check for intersection
+                        if (missileBox.intersectsBox(asteroidBox)) {
+                            console.log("Missile hit asteroid - creating explosion");
+                            
+                            // Calculate impact point
+                            const impactPoint = new THREE.Vector3();
+                            missileBox.getCenter(impactPoint);
+                            
+                            // Create explosion at impact point
+                            if (this.impactExplosionModel) {
+                                // Clone the explosion model
+                                const explosion = this.impactExplosionModel.clone();
+                                
+                                // Ensure all materials are cloned
+                                explosion.traverse((child) => {
+                                    if (child.material) {
+                                        child.material = child.material.clone();
+                                    }
+                                });
+                                
+                                // Position and scale the explosion
+                                explosion.position.copy(impactPoint);
+                                explosion.scale.set(3.0, 3.0, 3.0);
+                                explosion.visible = true;
+                                
+                                // Add to scene
+                                this.scene.add(explosion);
+                                
+                                // Animate the explosion
+                                let time = 0;
+                                const duration = 1.0; // 1 second duration
+                                const animate = () => {
+                                    time += delta;
+                                    const progress = time / duration;
+                                    
+                                    if (progress >= 1.0) {
+                                        this.scene.remove(explosion);
+                                        return;
+                                    }
+                                    
+                                    // Scale up and fade out
+                                    const scale = 3.0 + (progress * 5.0); // Scale from 3 to 8
+                                    const opacity = 1.0 - progress;
+                                    
+                                    explosion.scale.set(scale, scale, scale);
+                                    
+                                    // Update material opacity
+                                    explosion.traverse((child) => {
+                                        if (child.material) {
+                                            child.material.opacity = opacity;
+                                        }
+                                    });
+                                    
+                                    requestAnimationFrame(animate);
+                                };
+                                
+                                animate();
+                            }
+                            
+                            // Create particle explosion effect
+                            this.createExplosion(impactPoint);
+                            
+                            // Remove the missile and asteroid
+                            this.scene.remove(missile.model);
+                            this.missiles.splice(i, 1);
+                            
+                            if (object.userData.asteroidRef) {
+                                object.userData.asteroidRef.remove();
+                            } else {
+                                this.scene.remove(object);
+                            }
+                            
+                            // Play impact sound
+                            if (this.soundsLoaded && this.collisionSound && this.collisionSound.buffer) {
+                                if (this.collisionSound.isPlaying) {
+                                    this.collisionSound.stop();
+                                }
+                                this.collisionSound.play();
+                            }
+                            
+                            return; // Exit the traverse early since missile is destroyed
+                        }
+                    } catch (error) {
+                        console.error("Error in missile collision detection:", error);
+                    }
+                }
+            });
+            
             // Remove missile if it's gone too far or lived too long
             if (missile.lifeTime > missile.maxLifeTime || 
                 missile.model.position.x > 1000 || 
                 missile.model.position.x < -1000) {
                 
-                // Remove from scene
                 this.scene.remove(missile.model);
-                
-                // Remove from array
                 this.missiles.splice(i, 1);
-                console.log("Missile removed, remaining:", this.missiles.length);
             }
         }
     }
@@ -925,58 +1000,44 @@ export class Player {
             return;
         }
         
-        // Process each explosion from end to start to safely remove
         for (let i = this.explosions.length - 1; i >= 0; i--) {
             const explosion = this.explosions[i];
             
-            // Update lifetime
             explosion.lifetime += delta;
             
-            // Check if explosion has completed
             if (explosion.lifetime >= explosion.maxLifetime) {
-                // Remove light
                 if (explosion.light) {
                     this.scene.remove(explosion.light);
                 }
-                
-                // Remove particles
                 if (explosion.particles) {
                     this.scene.remove(explosion.particles);
                 }
-                
-                // Remove from array
                 this.explosions.splice(i, 1);
                 continue;
             }
             
-            // Calculate fade factor (1 at start, 0 at end)
             const fadeFactor = 1 - (explosion.lifetime / explosion.maxLifetime);
             
-            // Update light intensity
-            if (explosion.light) {
-                explosion.light.intensity = 5 * fadeFactor;
+            // Update light with less frequent intensity changes
+            if (explosion.light && explosion.lifetime % 0.1 < delta) {
+                explosion.light.intensity = 3 * fadeFactor;
             }
             
-            // Update particles
+            // Update particles with optimized calculations
             if (explosion.particles) {
                 const positions = explosion.particles.geometry.attributes.position.array;
                 const velocities = explosion.particles.userData.velocities;
                 
-                // Update particle positions
                 for (let j = 0; j < velocities.length; j++) {
-                    // Apply velocity
                     positions[j * 3] += velocities[j].x * delta;
                     positions[j * 3 + 1] += velocities[j].y * delta;
                     positions[j * 3 + 2] += velocities[j].z * delta;
                     
-                    // Slow down velocity (simulate air resistance)
-                    velocities[j].multiplyScalar(0.95);
+                    // Simplified velocity update
+                    velocities[j].multiplyScalar(0.9);
                 }
                 
-                // Update opacity
                 explosion.particles.material.opacity = fadeFactor;
-                
-                // Update the buffer
                 explosion.particles.geometry.attributes.position.needsUpdate = true;
             }
         }
@@ -987,61 +1048,62 @@ export class Player {
      * @param {THREE.Vector3} position - Position for the explosion
      */
     createExplosion(position) {
-        // Create light flash
-        const explosionLight = new THREE.PointLight(0xff7700, 5, 20);
+        // Create a single, optimized light flash
+        const explosionLight = new THREE.PointLight(0xff7700, 3, 15);
         explosionLight.position.copy(position);
         this.scene.add(explosionLight);
         
-        // Create particle burst
-        const particleCount = 30;
+        // Reduced particle count and optimized particle system
+        const particleCount = 15; // Reduced from 30
         const particles = new THREE.BufferGeometry();
         
         const positions = new Float32Array(particleCount * 3);
         const colors = new Float32Array(particleCount * 3);
         const velocities = [];
         
-        // Initialize particles at explosion center
+        // Initialize particles with optimized properties
         for (let i = 0; i < particleCount; i++) {
             positions[i * 3] = position.x;
             positions[i * 3 + 1] = position.y;
             positions[i * 3 + 2] = position.z;
             
-            // Random direction
+            // Simplified direction calculation
+            const angle = (Math.PI * 2 * i) / particleCount;
             const direction = new THREE.Vector3(
-                Math.random() * 2 - 1,
-                Math.random() * 2 - 1,
-                Math.random() * 2 - 1
-            ).normalize();
+                Math.cos(angle),
+                Math.sin(angle),
+                0
+            );
             
-            // Random speed
-            const speed = Math.random() * 5 + 5;
+            // Consistent speed for better performance
+            const speed = 7;
             velocities.push(direction.multiplyScalar(speed));
             
-            // Orange/yellow colors
-            colors[i * 3] = 1; // Red
-            colors[i * 3 + 1] = 0.5 + Math.random() * 0.5; // Green (orange to yellow)
-            colors[i * 3 + 2] = 0; // Blue
+            // Simplified colors (just orange)
+            colors[i * 3] = 1;     // Red
+            colors[i * 3 + 1] = 0.5; // Green
+            colors[i * 3 + 2] = 0;   // Blue
         }
         
         particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         particles.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         
-        // Create material
+        // Optimized material with minimal properties
         const particleMaterial = new THREE.PointsMaterial({
-            size: 0.5,
+            size: 0.8,
             vertexColors: true,
             blending: THREE.AdditiveBlending,
             transparent: true,
-            opacity: 1
+            opacity: 1,
+            depthWrite: false // Optimize transparency
         });
         
-        // Create particle system
         const explosionParticles = new THREE.Points(particles, particleMaterial);
         explosionParticles.userData.velocities = velocities;
         
         this.scene.add(explosionParticles);
         
-        // Add to explosions array
+        // Add to explosions array with shorter lifetime
         if (!this.explosions) {
             this.explosions = [];
         }
@@ -1050,7 +1112,95 @@ export class Player {
             light: explosionLight,
             particles: explosionParticles,
             lifetime: 0,
-            maxLifetime: 1 // 1 second
+            maxLifetime: 0.5 // Reduced from 1.0 second
         });
+    }
+
+    /**
+     * Load the impact explosion model
+     */
+    loadImpactExplosionModel() {
+        console.log("Loading impact explosion GLB model...");
+        
+        this.modelLoader.loadModel('models/spaceships/impact_explosion_no__0305031045.glb', (model) => {
+            console.log("Impact explosion model loaded successfully");
+            
+            // Make the model's materials emissive and bright
+            model.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    // Clone the material to avoid sharing
+                    child.material = child.material.clone();
+                    child.material.emissive = new THREE.Color(0xff3300);
+                    child.material.emissiveIntensity = 2.0;
+                    child.material.transparent = true;
+                    child.material.opacity = 1.0;
+                    child.material.blending = THREE.AdditiveBlending;
+                    child.material.depthWrite = false;
+                }
+            });
+            
+            this.impactExplosionModel = model;
+            this.impactExplosionModel.visible = false;
+            this.scene.add(this.impactExplosionModel);
+            
+        }, (error) => {
+            console.error("Failed to load impact explosion model:", error);
+            // Create a fallback explosion model
+            this.createFallbackExplosionModel();
+        });
+    }
+
+    /**
+     * Create a fallback explosion model if GLB fails to load
+     */
+    createFallbackExplosionModel() {
+        console.log("Creating fallback explosion model");
+        
+        // Create a simple sphere for the explosion
+        const geometry = new THREE.SphereGeometry(1, 32, 32);
+        const material = new THREE.MeshBasicMaterial({
+            color: 0xff3300,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        
+        const explosionMesh = new THREE.Mesh(geometry, material);
+        
+        // Add some rings
+        const ringGeometry = new THREE.RingGeometry(1, 2, 32);
+        const ringMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff6600,
+            transparent: true,
+            opacity: 0.6,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        
+        const ring1 = new THREE.Mesh(ringGeometry, ringMaterial.clone());
+        const ring2 = new THREE.Mesh(ringGeometry, ringMaterial.clone());
+        const ring3 = new THREE.Mesh(ringGeometry, ringMaterial.clone());
+        
+        ring2.rotation.x = Math.PI / 2;
+        ring3.rotation.y = Math.PI / 2;
+        
+        const explosionGroup = new THREE.Group();
+        explosionGroup.add(explosionMesh);
+        explosionGroup.add(ring1);
+        explosionGroup.add(ring2);
+        explosionGroup.add(ring3);
+        
+        explosionGroup.userData.materials = [
+            material,
+            ringMaterial.clone(),
+            ringMaterial.clone(),
+            ringMaterial.clone()
+        ];
+        
+        this.impactExplosionModel = explosionGroup;
+        this.impactExplosionModel.visible = false;
+        this.scene.add(this.impactExplosionModel);
     }
 } 

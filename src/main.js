@@ -12,60 +12,24 @@ class Game {
     constructor() {
         debugHelper.log("Game initialization started...");
         
-        // Set loading state
-        this.isLoading = true;
-        this.loadingErrors = [];
-        
-        // Update loading message
-        this.updateLoadingMessage("Initializing game engine...");
-        
         try {
             this.initThree();
-            this.updateLoadingMessage("Setting up space environment...");
             this.initWorld();
-            this.updateLoadingMessage("Preparing spaceship controls...");
             this.initPlayer();
-            this.updateLoadingMessage("Loading 3D models...");
             this.initModelShowcase();
             this.initEventListeners();
             this.animate();
             
             debugHelper.log("All game systems initialized successfully");
             
-            // Display model loading summary
+            // Display model loading summary after a short delay
             setTimeout(() => {
                 debugHelper.log(debugHelper.getModelLoadingSummary());
             }, 2000);
             
-            // Hide loading screen after everything is initialized with more time for model loading
-            setTimeout(() => {
-                if (this.loadingErrors.length > 0) {
-                    debugHelper.log("Loading completed with errors", "error");
-                    // Show error message but still continue
-                    this.updateLoadingMessage("Warning: Some assets failed to load");
-                    document.getElementById('loading-details').innerHTML = 
-                        "The game will continue with limited features...";
-                    setTimeout(() => {
-                        document.getElementById('loading').style.display = 'none';
-                        this.isLoading = false;
-                    }, 2000);
-                } else {
-                    debugHelper.log("Loading completed successfully");
-                    this.updateLoadingMessage("Ready to launch!");
-                    document.getElementById('loading-details').innerHTML = 
-                        "Entering space in 3...2...1...";
-                    setTimeout(() => {
-                        document.getElementById('loading').style.display = 'none';
-                        this.isLoading = false;
-                    }, 1500);
-                }
-            }, 5000); // Increased timeout to 5 seconds for model loading
         } catch (error) {
             debugHelper.log("Fatal error during game initialization: " + error.message, "error");
-            this.updateLoadingMessage("Error loading game");
-            document.getElementById('loading-details').innerHTML = 
-                error.message + "<br>Please try refreshing the page.";
-            this.loadingErrors.push(error.message);
+            console.error("Fatal error:", error);
         }
     }
     
@@ -183,7 +147,6 @@ class Game {
             this.modelShowcase = new ModelShowcase(this.scene);
         } catch (error) {
             debugHelper.log("Error initializing model showcase: " + error.message, "error");
-            this.loadingErrors.push("Model showcase: " + error.message);
             
             // Continue without the showcase by setting it to a simple object
             // This avoids null reference errors in the update loop
@@ -200,11 +163,6 @@ class Game {
             this.camera.aspect = window.innerWidth / window.innerHeight;
             this.camera.updateProjectionMatrix();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-        
-        // Handle pointer lock for immersive first-person experience
-        document.addEventListener('click', () => {
-            document.body.requestPointerLock();
         });
     }
 
