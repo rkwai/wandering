@@ -32,10 +32,10 @@ export class Asteroid {
         
         // Gradius-style movement pattern
         this.movementPattern = pattern;
-        this.initialY = this.position.y; // Store initial Y for sine wave pattern
-        this.sineAmplitude = Math.random() * 20 + 10; // Amplitude for sine wave movement
-        this.sineFrequency = Math.random() * 2 + 1; // Frequency for sine wave movement
-        this.moveTime = Math.random() * Math.PI * 2; // Random starting phase
+        this.initialY = this.position.y;
+        this.sineAmplitude = Math.random() * 20 + 10;
+        this.sineFrequency = Math.random() * 2 + 1;
+        this.moveTime = Math.random() * Math.PI * 2;
         
         // Random rotation
         this.rotation = new THREE.Euler(
@@ -44,16 +44,16 @@ export class Asteroid {
             Math.random() * Math.PI * 2
         );
         
-        // Random rotation speed - increased significantly
+        // Random rotation speed
         this.rotationSpeed = new THREE.Vector3(
-            (Math.random() - 0.5) * 0.2,  // 10x faster than before
-            (Math.random() - 0.5) * 0.2,  // 10x faster than before
-            (Math.random() - 0.5) * 0.2   // 10x faster than before
+            (Math.random() - 0.5) * 0.2,
+            (Math.random() - 0.5) * 0.2,
+            (Math.random() - 0.5) * 0.2
         );
         
         // Physical properties
-        this.mass = Math.random() * 50 + 10; // Random mass between 10 and 60
-        this.scale = (this.mass / 10) * (Math.random() * 0.5 + 1.5); // Increased minimum scale
+        this.mass = Math.random() * 50 + 10;
+        this.scale = (this.mass / 10) * (Math.random() * 0.5 + 1.5);
         
         // Create container for the asteroid model
         this.asteroidGroup = new THREE.Group();
@@ -63,23 +63,20 @@ export class Asteroid {
         this.asteroidGroup.userData = {
             debrisType: 'asteroid',
             mass: this.mass,
-            parent: this,  // Reference to this asteroid instance
+            parent: this,
             isAsteroid: false // Will be set to true once model is loaded
         };
         
-        // For collision detection
-        this.boundingBox = new THREE.Box3();
-        
-        // Flag to mark for removal if needed (e.g., after destruction)
+        // Initialize flags and properties
         this.markedForRemoval = false;
-        
-        // Flag to track if model is loaded and ready
         this.isModelLoaded = false;
+        this.boundingBox = null; // Will be created when model is loaded
+        this.collisionMesh = null;
         
         // Load the asteroid model
         this.loadModel();
         
-        // Add a light to the asteroid - but don't add to scene until model is loaded
+        // Create lights but don't add them yet
         this.createAsteroidLight();
     }
     
@@ -152,20 +149,92 @@ export class Asteroid {
     }
     
     /**
+     * Initialize or reinitialize the asteroid's collision detection
+     */
+    initializeCollision() {
+        if (!this.collisionMesh) return;
+
+        // Create new bounding box
+        this.boundingBox = new THREE.Box3();
+        
+        // Update the collision mesh's matrix
+        this.collisionMesh.updateMatrixWorld(true);
+        
+        // Compute the bounding box in world space
+        this.boundingBox.setFromObject(this.collisionMesh);
+        
+        // Add padding for more reliable collision
+        const padding = 0.1 * this.scale;
+        this.boundingBox.min.subScalar(padding);
+        this.boundingBox.max.addScalar(padding);
+        
+        // Create bounding sphere from box
+        this.boundingSphere = new THREE.Sphere();
+        this.boundingBox.getBoundingSphere(this.boundingSphere);
+    }
+    
+    /**
+     * Reset the asteroid's position and properties
+     */
+    reset() {
+        // Reset position to the right side with more variation
+        this.position.set(
+            Math.random() * 300 + 200,
+            (Math.random() - 0.5) * 100,
+            (Math.random() - 0.5) * 20
+        );
+        
+        this.initialY = this.position.y;
+        
+        // Randomize velocity
+        this.velocity.set(
+            -Math.random() * 20 - 10,
+            (Math.random() - 0.5) * 4,
+            0
+        );
+        
+        // Reset movement pattern
+        this.moveTime = Math.random() * Math.PI * 2;
+        this.sineAmplitude = Math.random() * 30 + 15;
+        this.sineFrequency = Math.random() * 3 + 0.5;
+        
+        // New random rotation speeds
+        this.rotationSpeed.set(
+            (Math.random() - 0.5) * 0.2,
+            (Math.random() - 0.5) * 0.2,
+            (Math.random() - 0.5) * 0.2
+        );
+        
+        // Update group position
+        this.asteroidGroup.position.copy(this.position);
+        
+        // Reinitialize collision detection
+        this.initializeCollision();
+        
+        // Reset flags
+        this.markedForRemoval = false;
+    }
+    
+    /**
      * Update the bounding box to match current position and rotation
      */
     updateBoundingBox() {
-        if (this.collisionMesh && this.boundingBox) {
-            // Get the world matrix of the collision mesh
-            this.collisionMesh.updateMatrixWorld(true);
-            
-            // Compute the bounding box in world space
-            this.boundingBox.setFromObject(this.collisionMesh);
-            
-            // Add a small padding to the bounding box for more reliable collision
-            const padding = 0.1 * this.scale; // 10% of asteroid scale
-            this.boundingBox.min.subScalar(padding);
-            this.boundingBox.max.addScalar(padding);
+        if (!this.collisionMesh || !this.boundingBox || !this.isModelLoaded) return;
+        
+        // Update the collision mesh's world matrix
+        this.collisionMesh.updateMatrixWorld(true);
+        
+        // Update the bounding box in world space
+        this.boundingBox.setFromObject(this.collisionMesh);
+        
+        // Maintain padding
+        const padding = 0.1 * this.scale;
+        this.boundingBox.min.subScalar(padding);
+        this.boundingBox.max.addScalar(padding);
+        
+        // Update bounding sphere
+        if (this.boundingSphere) {
+            this.boundingBox.getBoundingSphere(this.boundingSphere);
         }
     }
     
@@ -197,19 +266,21 @@ export class Asteroid {
      * @param {number} delta - Time step in seconds
      */
     update(delta) {
+        if (!this.isModelLoaded) return;
+        
         // Initialize pulseTime if not already set
         if (this.pulseTime === undefined) {
             this.pulseTime = Math.random() * 10;
         }
         
-        // Update pulse time
+        // Update timers
         this.pulseTime += delta;
         this.moveTime += delta;
         
-        // Base velocity (always move left)
+        // Base velocity
         const baseVelocity = this.velocity.clone();
         
-        // Apply Gradius-style movement patterns
+        // Apply movement pattern
         if (this.movementPattern === 3) {
             const newY = this.initialY + Math.sin(this.moveTime * this.sineFrequency) * this.sineAmplitude;
             const verticalVelocity = (newY - this.position.y) / delta;
@@ -221,33 +292,20 @@ export class Asteroid {
             this.position.y = newY;
         }
         
-        // Update position based on velocity
+        // Update position
         this.position.add(baseVelocity.clone().multiplyScalar(delta));
         this.asteroidGroup.position.copy(this.position);
         
-        // Update rotation speeds
-        this.rotationSpeed.x = THREE.MathUtils.lerp(
-            this.rotationSpeed.x,
-            Math.abs(this.velocity.x) * 0.01,
-            0.05
-        );
-        
-        this.rotationSpeed.y = THREE.MathUtils.lerp(
-            this.rotationSpeed.y,
-            Math.abs(this.velocity.y) * 0.015,
-            0.05
-        );
-        
-        // Apply rotation
+        // Update rotation
         this.rotation.x += this.rotationSpeed.x * delta;
         this.rotation.y += this.rotationSpeed.y * delta;
         this.rotation.z += this.rotationSpeed.z * delta;
         this.asteroidGroup.rotation.set(this.rotation.x, this.rotation.y, this.rotation.z);
         
-        // Update bounding box every frame
+        // Update collision detection
         this.updateBoundingBox();
         
-        // Update light intensity with pulsing effect
+        // Update lights
         if (this.lights) {
             const mainIntensity = 2.0 + Math.sin(this.pulseTime * 3) * 1.0;
             this.lights.main.intensity = mainIntensity;
@@ -256,34 +314,9 @@ export class Asteroid {
             this.lights.secondary.intensity = secondaryIntensity;
         }
         
-        // For side-scrolling, respawn asteroids when they go off the left side
+        // Check if asteroid needs to be reset
         if (this.position.x < -100) {
-            // Reset position to the right side with more variation
-            this.position.x = Math.random() * 300 + 200;
-            this.position.y = (Math.random() - 0.5) * 100;
-            this.position.z = (Math.random() - 0.5) * 20;
-            
-            this.initialY = this.position.y;
-            
-            // Randomize velocity for more variety
-            this.velocity.x = -Math.random() * 20 - 10;
-            this.velocity.y = (Math.random() - 0.5) * 4;
-            
-            // Reset movement pattern variables
-            this.moveTime = Math.random() * Math.PI * 2;
-            this.sineAmplitude = Math.random() * 30 + 15;
-            this.sineFrequency = Math.random() * 3 + 0.5;
-            
-            // Add new random rotation speeds
-            this.rotationSpeed.x = (Math.random() - 0.5) * 0.2;
-            this.rotationSpeed.y = (Math.random() - 0.5) * 0.2;
-            this.rotationSpeed.z = (Math.random() - 0.5) * 0.2;
-            
-            // Update asteroid group position
-            this.asteroidGroup.position.copy(this.position);
-            
-            // Mark as active
-            this.markedForRemoval = false;
+            this.reset();
         }
     }
     
@@ -314,15 +347,5 @@ export class Asteroid {
     remove() {
         this.scene.remove(this.asteroidGroup);
         this.markedForRemoval = true;
-    }
-
-    /**
-     * Creates a bounding sphere for collision detection
-     */
-    createBoundingSphere() {
-        if (this.asteroidGroup) {
-            this.boundingSphere = new THREE.Sphere();
-            this.boundingBox.getBoundingSphere(this.boundingSphere);
-        }
     }
 } 
