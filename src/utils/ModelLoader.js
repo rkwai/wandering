@@ -48,6 +48,8 @@ export class ModelLoader {
             if (modelPath.startsWith('models/')) {
                 fullPath = `/assets/${modelPath}`;
                 alternativePaths.push(fullPath);
+                alternativePaths.push(`/public/assets/${modelPath}`);
+                alternativePaths.push(modelPath); // Try the original path too
             } else {
                 // File name only - try different directories
                 const filename = modelPath.split('/').pop();
@@ -55,22 +57,43 @@ export class ModelLoader {
                 // Try specific subdirectories based on file patterns
                 if (filename.startsWith('spaceship') || filename.startsWith('missile')) {
                     alternativePaths.push(`/assets/models/spaceships/${filename}`);
+                    alternativePaths.push(`/public/assets/models/spaceships/${filename}`);
                 } else if (filename.startsWith('asteroid')) {
                     alternativePaths.push(`/assets/models/asteroids/${filename}`);
+                    alternativePaths.push(`/public/assets/models/asteroids/${filename}`);
                 } else if (filename.startsWith('planet')) {
                     alternativePaths.push(`/assets/models/environment/${filename}`);
+                    alternativePaths.push(`/public/assets/models/environment/${filename}`);
                 }
                 
                 // Also try the root models directory
                 alternativePaths.push(`/assets/models/${filename}`);
+                alternativePaths.push(`/public/assets/models/${filename}`);
                 fullPath = alternativePaths[0]; // Use first alternative as the primary path
             }
         }
         
         console.log(`Loading model from path: ${fullPath}`);
         
+        // Try loading with the first path
+        this.tryLoadingWithPath(fullPath, alternativePaths, modelPath, onLoad, onError, cache);
+    }
+    
+    /**
+     * Try loading a model with a specific path, falling back to alternatives if needed
+     * 
+     * @param {string} path - Path to try loading from
+     * @param {Array<string>} alternativePaths - Alternative paths to try if this one fails
+     * @param {string} originalPath - The original path for caching
+     * @param {Function} onLoad - Success callback
+     * @param {Function} onError - Error callback
+     * @param {boolean} cache - Whether to cache the model
+     */
+    tryLoadingWithPath(path, alternativePaths, originalPath, onLoad, onError, cache) {
+        console.log(`Attempting to load model from: ${path}`);
+        
         this.loader.load(
-            fullPath,
+            path,
             (gltf) => {
                 const model = gltf.scene;
                 
@@ -84,10 +107,10 @@ export class ModelLoader {
                 
                 // Cache the model if needed
                 if (cache) {
-                    this.models.set(modelPath, model.clone());
+                    this.models.set(originalPath, model.clone());
                 }
                 
-                console.log(`Model loaded successfully: ${modelPath}`);
+                console.log(`Model loaded successfully: ${path}`);
                 
                 // Return the model via callback
                 if (onLoad) onLoad(model);
@@ -98,45 +121,24 @@ export class ModelLoader {
             },
             // Error callback
             (error) => {
-                console.error(`Failed to load model: ${modelPath} at path ${fullPath}`, error);
+                console.error(`Failed to load model: ${path}`, error);
                 
                 // Try alternative paths if available
                 if (alternativePaths.length > 0) {
-                    // Remove the path we just tried
-                    alternativePaths = alternativePaths.filter(path => path !== fullPath);
+                    // Remove the path we just tried if it's in the alternatives
+                    alternativePaths = alternativePaths.filter(p => p !== path);
                     
                     if (alternativePaths.length > 0) {
                         const nextPath = alternativePaths[0];
                         console.log(`Retrying with alternative path: ${nextPath}`);
                         
-                        this.loader.load(
-                            nextPath,
-                            (gltf) => {
-                                const model = gltf.scene;
-                                model.traverse((child) => {
-                                    if (child.isMesh) {
-                                        child.castShadow = true;
-                                        child.receiveShadow = true;
-                                    }
-                                });
-                                
-                                if (cache) {
-                                    this.models.set(modelPath, model.clone());
-                                }
-                                
-                                console.log(`Model loaded with alternative path: ${nextPath}`);
-                                if (onLoad) onLoad(model);
-                            },
-                            null,
-                            (secondError) => {
-                                console.error(`Also failed with alternative path: ${nextPath}`, secondError);
-                                if (onError) onError(error);
-                            }
-                        );
+                        // Try the next path
+                        this.tryLoadingWithPath(nextPath, alternativePaths, originalPath, onLoad, onError, cache);
                         return;
                     }
                 }
                 
+                // If we've exhausted all paths, call the error callback
                 if (onError) onError(error);
             }
         );

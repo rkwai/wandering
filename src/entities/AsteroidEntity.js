@@ -14,9 +14,12 @@ export class AsteroidEntity extends Entity {
      * @param {THREE.Vector3} position - Initial position (null for random)
      * @param {THREE.Vector3} velocity - Initial velocity (null for random)
      * @param {number} pattern - Movement pattern (0=random, 3=sine wave)
+     * @param {Object} resourceManager - The resource manager to get models from
      */
-    constructor(scene, position = null, velocity = null, pattern = 0) {
+    constructor(scene, position = null, velocity = null, pattern = 0, resourceManager = null) {
         super(scene);
+        
+        this.resourceManager = resourceManager;
         
         // Set up initial positions
         this.initialPosition = position || new THREE.Vector3(
@@ -66,8 +69,10 @@ export class AsteroidEntity extends Entity {
             debrisType: 'asteroid'
         };
         
-        // Add model loader
-        this.modelLoader = new ModelLoader();
+        // Add model loader if resourceManager is not available
+        if (!this.resourceManager) {
+            this.modelLoader = new ModelLoader();
+        }
         
         // Load the model
         this.loadModel();
@@ -77,57 +82,91 @@ export class AsteroidEntity extends Entity {
      * Load the asteroid model
      */
     loadModel() {
-        debugHelper.log("Loading asteroid model...");
+        debugHelper.log("AsteroidEntity: Loading asteroid model...");
         
-        this.modelLoader.loadModel(
-            'models/asteroids/asteroid_0304124602.glb',
-            (model) => {
-                // Success callback
-                this.model = model;
+        // Try to get the model from ResourceManager
+        if (this.resourceManager) {
+            debugHelper.log("AsteroidEntity: Trying to get model from ResourceManager");
+            const model = this.resourceManager.getAsteroidModel();
+            if (model) {
+                debugHelper.log("AsteroidEntity: Got model from ResourceManager");
+                this.setupModel(model);
+                return;
+            } else {
+                debugHelper.log("AsteroidEntity: ResourceManager returned null model");
                 
-                // Set model properties
-                this.model.scale.set(this.scale, this.scale, this.scale);
-                
-                // Add emissive properties to make it glow more brightly
-                model.traverse((child) => {
-                    if (child.isMesh && child.material) {
-                        // Add a stronger emissive glow to the asteroid
-                        child.material.emissive = new THREE.Color(0xff5500);
-                        child.material.emissiveIntensity = 0.5;
-                        
-                        // Store the mesh for collision detection
-                        if (!this.collisionMesh) {
-                            this.collisionMesh = child;
-                        }
-                    }
+                // Emit failure event
+                gameEvents.emit(GameEvents.ENTITY_DESTROYED, {
+                    type: 'asteroid',
+                    entity: this,
+                    reason: 'load_failure'
                 });
                 
-                // Set the render component's mesh
-                this.render.setMesh(this.model);
-                
-                // Create lights
-                this.createLights();
-                
-                // Set up physics colliders
-                this.physics.boundingBox = new THREE.Box3();
-                this.updateColliders();
-                
-                // Mark this as an asteroid for collision handling
-                this.userData.isAsteroid = true;
-                
-                debugHelper.log("Asteroid model loaded successfully");
-                
-                // Emit asteroid spawn event
-                gameEvents.emit(GameEvents.ENEMY_SPAWN, { 
-                    type: 'asteroid', 
-                    entity: this 
-                });
-            },
-            (error) => {
-                debugHelper.log("Failed to load asteroid model: " + error.message, "error");
-                this.destroy();
+                // Mark for removal
+                this.remove();
             }
-        );
+        } else {
+            debugHelper.log("AsteroidEntity: No ResourceManager provided");
+            
+            // Emit failure event
+            gameEvents.emit(GameEvents.ENTITY_DESTROYED, {
+                type: 'asteroid',
+                entity: this,
+                reason: 'no_resource_manager'
+            });
+            
+            // Mark for removal
+            this.remove();
+        }
+    }
+    
+    /**
+     * Set up the asteroid model with appropriate properties
+     * @param {THREE.Object3D} model - The asteroid model
+     */
+    setupModel(model) {
+        // Success callback
+        this.model = model;
+        
+        // Set model properties
+        this.model.scale.set(this.scale, this.scale, this.scale);
+        
+        // Add emissive properties to make it glow more brightly
+        model.traverse((child) => {
+            if (child.isMesh && child.material) {
+                // Clone the material to avoid shared material issues
+                child.material = child.material.clone();
+                
+                // Add a stronger emissive glow to the asteroid
+                child.material.emissive = new THREE.Color(0xff5500);
+                child.material.emissiveIntensity = 0.5;
+                
+                // Store the mesh for collision detection
+                if (!this.collisionMesh) {
+                    this.collisionMesh = child;
+                }
+            }
+        });
+        
+        // Add the model to the render component
+        this.render.setMesh(this.model);
+        
+        // Create lights for the asteroid
+        this.createLights();
+        
+        // Update colliders now that the model is loaded
+        this.updateColliders();
+        
+        // Mark this as an asteroid for collision handling
+        this.userData.isAsteroid = true;
+        
+        debugHelper.log("Asteroid model loaded successfully");
+        
+        // Emit asteroid spawn event
+        gameEvents.emit(GameEvents.ENTITY_SPAWNED, {
+            type: 'asteroid',
+            entity: this
+        });
     }
     
     /**
@@ -160,27 +199,23 @@ export class AsteroidEntity extends Entity {
     }
     
     /**
-     * Update collision geometry
+     * Update the colliders for this asteroid
      */
     updateColliders() {
-        if (!this.collisionMesh || !this.physics.boundingBox) return;
+        if (!this.model) return;
         
-        // Update the collision mesh's world matrix
-        this.collisionMesh.updateMatrixWorld(true);
+        // Create bounding box if it doesn't exist
+        if (!this.physics.boundingBox) {
+            this.physics.boundingBox = new THREE.Box3();
+        }
         
-        // Update the bounding box
-        this.physics.boundingBox.setFromObject(this.collisionMesh);
+        // Update the bounding box from the model
+        this.physics.boundingBox.setFromObject(this.model);
         
-        // Add padding for more reliable collision
-        const padding = 0.1 * this.scale;
+        // Add a small padding to the bounding box for better collision detection
+        const padding = 1.0;
         this.physics.boundingBox.min.subScalar(padding);
         this.physics.boundingBox.max.addScalar(padding);
-        
-        // Create or update bounding sphere
-        if (!this.physics.boundingSphere) {
-            this.physics.boundingSphere = new THREE.Sphere();
-        }
-        this.physics.boundingBox.getBoundingSphere(this.physics.boundingSphere);
     }
     
     /**

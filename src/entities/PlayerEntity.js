@@ -42,119 +42,27 @@ export class WeaponComponent extends PhysicsComponent {
      * Load missile model
      */
     loadMissileModel() {
-        const modelLoader = new ModelLoader();
-        
-        modelLoader.loadModel('models/spaceships/missile_0305024558.glb', (model) => {
-            debugHelper.log("Missile model loaded successfully");
-            
-            // Set up the missile model
+        this.modelLoader.loadModel('models/spaceships/spaceship_missile_0304125431.glb', (model) => {
             this.missileModel = model;
-            this.setupMissileModel(model);
             
-            // Now create object pool for missiles
-            this.missilePool = new ObjectPool(
-                // Factory function to create new missiles
-                () => {
-                    const missile = this.missileModel.clone();
-                    missile.userData = {
-                        velocity: new THREE.Vector3(),
-                        lifeTime: 0,
-                        maxLifeTime: this.missileLifetime,
-                        boundingBox: new THREE.Box3()
-                    };
-                    return missile;
-                },
-                // Reset function to reset missile properties
-                (missile) => {
-                    missile.visible = false;
-                    missile.userData.lifeTime = 0;
-                    missile.position.set(0, 0, 0);
-                    missile.userData.velocity.set(0, 0, 0);
+            // Set up materials
+            model.traverse(child => {
+                if (child.isMesh && child.material) {
+                    child.material = child.material.clone();
+                    child.material.emissive = new THREE.Color(0x00ffff);
+                    child.material.emissiveIntensity = 1.0;
+                    child.material.color = new THREE.Color(0x00ffff);
                 }
-            );
+            });
+            
+            // Orient for side-scroller
+            model.rotation.y = 0;
+            model.visible = false;
         }, (error) => {
-            debugHelper.log("Failed to load missile model: " + error.message, "error");
-            this.createDefaultMissileModel();
+            console.error("Failed to load missile model:", error);
+            // Do not create a fallback model
+            this.missileModel = null;
         });
-    }
-    
-    /**
-     * Set up the missile model
-     */
-    setupMissileModel(model) {
-        // Make missile materials emissive and bright
-        model.traverse((child) => {
-            if (child.isMesh && child.material) {
-                // Clone the material to avoid sharing
-                child.material = child.material.clone();
-                
-                // Make it bright and glowing
-                child.material.emissive = new THREE.Color(0x66ccff);
-                child.material.emissiveIntensity = 2.0;
-                child.material.color.set(0x00ffff);
-            }
-        });
-        
-        // Scale the missile
-        model.scale.set(3.0, 3.0, 3.0);
-        
-        // Orient for side-scroller
-        model.rotation.y = 0;
-        model.visible = false;
-    }
-    
-    /**
-     * Create a simple missile model as a fallback
-     */
-    createDefaultMissileModel() {
-        // Create a simple glowing cylinder
-        const geometry = new THREE.CylinderGeometry(0.5, 0.5, 4, 8);
-        const material = new THREE.MeshStandardMaterial({
-            color: 0x00ffff,
-            emissive: 0x66ccff,
-            emissiveIntensity: 2.0,
-            metalness: 0.8,
-            roughness: 0.2
-        });
-        
-        const mesh = new THREE.Mesh(geometry, material);
-        
-        // Rotate to point forward
-        mesh.rotation.z = Math.PI / 2;
-        
-        // Create a group for the missile
-        const group = new THREE.Group();
-        group.add(mesh);
-        
-        // Add a point light
-        const light = new THREE.PointLight(0x66ccff, 4, 10);
-        light.position.set(0, 0, 0);
-        group.add(light);
-        
-        this.missileModel = group;
-        this.missileModel.visible = false;
-        
-        // Create object pool
-        this.missilePool = new ObjectPool(
-            // Factory function to create new missiles
-            () => {
-                const missile = this.missileModel.clone();
-                missile.userData = {
-                    velocity: new THREE.Vector3(),
-                    lifeTime: 0,
-                    maxLifeTime: this.missileLifetime,
-                    boundingBox: new THREE.Box3()
-                };
-                return missile;
-            },
-            // Reset function to reset missile properties
-            (missile) => {
-                missile.visible = false;
-                missile.userData.lifeTime = 0;
-                missile.position.set(0, 0, 0);
-                missile.userData.velocity.set(0, 0, 0);
-            }
-        );
     }
     
     /**
@@ -367,12 +275,13 @@ export class WeaponComponent extends PhysicsComponent {
      * Create explosion at position
      */
     createExplosion(position) {
-        // TODO: Create particle explosion here
-        // For now, we'll emit an event for the explosion
-        gameEvents.emit(GameEvents.SHOW_EXPLOSION, {
-            position: position.clone(),
-            scale: 3.0
-        });
+        // We no longer create visual effects for explosions
+        console.log("Explosion created at position: " + position.x.toFixed(2) + ", " + position.y.toFixed(2) + ", " + position.z.toFixed(2));
+        
+        // Play sound if available
+        if (this.explosionSound) {
+            this.explosionSound.play();
+        }
     }
     
     /**
@@ -454,8 +363,7 @@ export class PlayerEntity extends Entity {
         // Set up bounding box for collision
         this.boundingBox = new THREE.Box3();
         
-        // Set up explosion effects
-        this.explosions = [];
+        // Load explosion sound only
         this.loadImpactExplosionModel();
     }
     
@@ -697,194 +605,24 @@ export class PlayerEntity extends Entity {
     }
     
     /**
-     * Load impact explosion model
+     * Load the impact explosion model
      */
     loadImpactExplosionModel() {
-        this.modelLoader.loadModel('models/spaceships/impact_explosion_no__0305031045.glb', (model) => {
-            console.log("Impact explosion model loaded successfully");
-            
-            // Make the model's materials emissive and bright
-            model.traverse((child) => {
-                if (child.isMesh && child.material) {
-                    // Clone the material to avoid sharing
-                    child.material = child.material.clone();
-                    child.material.emissive = new THREE.Color(0xff3300);
-                    child.material.emissiveIntensity = 2.0;
-                    child.material.transparent = true;
-                    child.material.opacity = 1.0;
-                    child.material.blending = THREE.AdditiveBlending;
-                    child.material.depthWrite = false;
-                }
-            });
-            
-            this.impactExplosionModel = model;
-            this.impactExplosionModel.visible = false;
-            this.scene.add(this.impactExplosionModel);
-            
-        }, (error) => {
-            console.error("Failed to load impact explosion model:", error);
-            // Create a fallback explosion model
-            this.createFallbackExplosionModel();
-        });
-    }
-    
-    /**
-     * Create a fallback explosion model
-     */
-    createFallbackExplosionModel() {
-        // Create a simple sphere for the explosion
-        const geometry = new THREE.SphereGeometry(1, 32, 32);
-        const material = new THREE.MeshStandardMaterial({
-            color: 0xff3300,
-            emissive: 0xff5500,
-            emissiveIntensity: 2.0,
-            transparent: true,
-            opacity: 1.0
-        });
-        
-        const mesh = new THREE.Mesh(geometry, material);
-        
-        // Add a point light
-        const light = new THREE.PointLight(0xff5500, 5.0, 20);
-        light.position.set(0, 0, 0);
-        
-        // Create a group
-        const group = new THREE.Group();
-        group.add(mesh);
-        group.add(light);
-        
-        this.impactExplosionModel = group;
-        this.impactExplosionModel.visible = false;
-        this.scene.add(this.impactExplosionModel);
+        // We no longer use fallback models
+        this.impactExplosionModel = null;
+        console.log("Impact explosion model loading skipped - no fallbacks used");
     }
     
     /**
      * Create explosion at position
      */
     createExplosion(position) {
-        // Create a bright point light at the explosion location
-        const explosionLight = new THREE.PointLight(0xff6600, 5.0, 20);
-        explosionLight.position.copy(position);
+        // We no longer create visual effects for explosions
+        console.log("Explosion created at position: " + position.x.toFixed(2) + ", " + position.y.toFixed(2) + ", " + position.z.toFixed(2));
         
-        // Create particles for the explosion
-        const particleCount = 150;
-        const geometry = new THREE.BufferGeometry();
-        const positions = new Float32Array(particleCount * 3);
-        const colors = new Float32Array(particleCount * 3);
-        const sizes = new Float32Array(particleCount);
-        
-        // Velocities for particle animation
-        const velocities = [];
-        
-        for (let i = 0; i < particleCount; i++) {
-            const i3 = i * 3;
-            
-            // Initial position - small random offset
-            positions[i3] = position.x + (Math.random() - 0.5) * 2;
-            positions[i3 + 1] = position.y + (Math.random() - 0.5) * 2;
-            positions[i3 + 2] = position.z + (Math.random() - 0.5) * 2;
-            
-            // Random velocity in all directions
-            velocities.push(new THREE.Vector3(
-                (Math.random() - 0.5) * 40,
-                (Math.random() - 0.5) * 40,
-                (Math.random() - 0.5) * 40
-            ));
-            
-            // Random color from yellow to red
-            colors[i3] = Math.random() * 0.5 + 0.5; // Red
-            colors[i3 + 1] = Math.random() * 0.3; // Green
-            colors[i3 + 2] = 0; // Blue
-            
-            // Random size
-            sizes[i] = Math.random() * 3 + 1;
-        }
-        
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-        
-        const particleMaterial = new THREE.PointsMaterial({
-            size: 1,
-            vertexColors: true,
-            blending: THREE.AdditiveBlending,
-            transparent: true,
-            sizeAttenuation: true,
-            depthWrite: false
-        });
-        
-        const explosionParticles = new THREE.Points(geometry, particleMaterial);
-        explosionParticles.userData.velocities = velocities;
-        
-        this.scene.add(explosionParticles);
-        
-        // Add to explosions array
-        if (!this.explosions) {
-            this.explosions = [];
-        }
-        
-        this.explosions.push({
-            light: explosionLight,
-            particles: explosionParticles,
-            lifetime: 0,
-            maxLifetime: 0.5 // Short lifetime for a quick explosion
-        });
-    }
-    
-    /**
-     * Update explosions
-     */
-    updateExplosions(delta) {
-        if (!this.explosions || this.explosions.length === 0) return;
-        
-        for (let i = this.explosions.length - 1; i >= 0; i--) {
-            const explosion = this.explosions[i];
-            
-            // Update lifetime
-            explosion.lifetime += delta;
-            
-            // Check if explosion is finished
-            if (explosion.lifetime > explosion.maxLifetime) {
-                // Remove explosion elements from scene
-                this.scene.remove(explosion.light);
-                this.scene.remove(explosion.particles);
-                
-                // Remove from array
-                this.explosions.splice(i, 1);
-                continue;
-            }
-            
-            // Calculate progress (0 to 1)
-            const progress = explosion.lifetime / explosion.maxLifetime;
-            
-            // Update light intensity
-            explosion.light.intensity = 5.0 * (1 - progress);
-            
-            // Update particles
-            const particles = explosion.particles;
-            const positions = particles.geometry.attributes.position.array;
-            const velocities = particles.userData.velocities;
-            const sizes = particles.geometry.attributes.size.array;
-            
-            // Update each particle
-            for (let j = 0; j < velocities.length; j++) {
-                const j3 = j * 3;
-                
-                // Update position based on velocity
-                positions[j3] += velocities[j].x * delta;
-                positions[j3 + 1] += velocities[j].y * delta;
-                positions[j3 + 2] += velocities[j].z * delta;
-                
-                // Reduce size over time
-                sizes[j] *= 0.98;
-            }
-            
-            // Mark attributes for update
-            particles.geometry.attributes.position.needsUpdate = true;
-            particles.geometry.attributes.size.needsUpdate = true;
-            
-            // Fade out opacity
-            particles.material.opacity = 1 - progress;
+        // Play sound if available
+        if (this.explosionSound) {
+            this.explosionSound.play();
         }
     }
     
@@ -934,9 +672,6 @@ export class PlayerEntity extends Entity {
         
         // Update engine effects
         this.updateEngineEffects();
-        
-        // Update explosions
-        this.updateExplosions(delta);
         
         // Update camera position
         this.updateCameraPosition();

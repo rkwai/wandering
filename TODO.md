@@ -5,7 +5,7 @@
 - Implement homing enemies that track the player
 - Add formation-flying enemies with coordinated attacks
 - Design boss enemies with multiple phases and attack patterns
-- Build an enemy spawning system based on time/progress
+- ✅ Build an enemy spawning system based on time/progress
 
 ## 2. Power-up System
 - Implement Gradius-style progressive power-ups

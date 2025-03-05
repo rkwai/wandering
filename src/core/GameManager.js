@@ -5,6 +5,7 @@ import { UISystem } from './UISystem.js';
 import { PlayerEntity } from '../entities/PlayerEntity.js';
 import { AsteroidEntity } from '../entities/AsteroidEntity.js';
 import * as THREE from 'three';
+import { debugHelper } from '../utils/DebugHelper.js';
 
 /**
  * Main game manager that orchestrates all game systems
@@ -31,6 +32,8 @@ export class GameManager {
         
         // Set up event listeners
         this.setupEventListeners();
+        
+        debugHelper.log("Game manager initialized");
     }
     
     /**
@@ -161,10 +164,18 @@ export class GameManager {
     }
     
     /**
+     * Set the resource manager
+     * @param {Object} resourceManager - The resource manager to use
+     */
+    setResourceManager(resourceManager) {
+        this.resourceManager = resourceManager;
+    }
+    
+    /**
      * Create an asteroid
      */
     createAsteroid(position = null, velocity = null, pattern = 0) {
-        const asteroid = new AsteroidEntity(this.scene, position, velocity, pattern);
+        const asteroid = new AsteroidEntity(this.scene, position, velocity, pattern, this.resourceManager);
         this.entities.add(asteroid);
         
         return asteroid;

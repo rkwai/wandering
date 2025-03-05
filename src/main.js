@@ -5,7 +5,8 @@ import { createNoise2D } from 'simplex-noise';
 import { WorldGenerator } from './world/WorldGenerator.js';
 import { Player } from './entities/Player.js';
 import { SpaceEnvironment } from './environment/SpaceEnvironment.js';
-import { ModelShowcase } from './world/ModelShowcase.js';
+import { ResourceManager } from './utils/ResourceManager.js';
+import { EnemyManager } from './entities/EnemyManager.js';
 import debugHelper from './utils/DebugHelper.js';
 
 class Game {
@@ -15,8 +16,7 @@ class Game {
         try {
             this.initThree();
             this.initWorld();
-            this.initPlayer();
-            this.initModelShowcase();
+            this.initResourceManager(); // This will call initEnemyManager and initPlayer when resources are loaded
             this.initEventListeners();
             this.animate();
             
@@ -128,33 +128,102 @@ class Game {
             this.worldGenerator.generateTerrain();
         }
     }
+    
+    /**
+     * Initialize the resource manager
+     */
+    initResourceManager() {
+        try {
+            debugHelper.log("Initializing resource manager...");
+            
+            // Create a loading indicator
+            this.updateLoadingMessage("Loading game resources...");
+            
+            this.resourceManager = new ResourceManager(this.scene, () => {
+                // Once resources are loaded, initialize enemy manager and player
+                debugHelper.log("Resources loaded, initializing game entities");
+                this.updateLoadingMessage("Resources loaded, initializing game...");
+                
+                // Initialize game entities in the correct order
+                this.initEnemyManager();
+                this.initPlayer();
+                
+                // Hide loading message
+                this.updateLoadingMessage("");
+                const loadingElement = document.getElementById('loading-message');
+                if (loadingElement) {
+                    loadingElement.style.display = 'none';
+                }
+                
+                debugHelper.log("Game initialization complete");
+            });
+            
+            // Add a timeout to handle the case where resource loading takes too long
+            setTimeout(() => {
+                if (!this.enemyManager) {
+                    debugHelper.log("Resource loading timeout - forcing initialization", "warn");
+                    this.updateLoadingMessage("Resource loading timeout - starting game anyway");
+                    
+                    // Force initialization
+                    this.initEnemyManager();
+                    this.initPlayer();
+                    
+                    // Hide loading message
+                    setTimeout(() => {
+                        this.updateLoadingMessage("");
+                        const loadingElement = document.getElementById('loading-message');
+                        if (loadingElement) {
+                            loadingElement.style.display = 'none';
+                        }
+                    }, 2000);
+                }
+            }, 10000); // 10 second timeout
+            
+        } catch (error) {
+            debugHelper.log("Error initializing resource manager: " + error.message, "error");
+            
+            // Create a minimal resource manager if initialization fails
+            this.resourceManager = {
+                getMissileModel: () => null,
+                getShipModel: () => null,
+                getAsteroidModel: () => null
+            };
+            
+            // Continue with initialization even if resource manager fails
+            this.initEnemyManager();
+            this.initPlayer();
+        }
+    }
+    
+    /**
+     * Initialize the enemy manager
+     */
+    initEnemyManager() {
+        try {
+            debugHelper.log("Initializing enemy manager...");
+            this.enemyManager = new EnemyManager(this.scene, this.resourceManager);
+        } catch (error) {
+            debugHelper.log("Error initializing enemy manager: " + error.message, "error");
+            
+            // Create a minimal enemy manager if initialization fails
+            this.enemyManager = {
+                update: () => {},
+                checkCollisions: () => null,
+                entities: { asteroids: [] }
+            };
+        }
+    }
 
     initPlayer() {
         // Create an audio listener for 3D sound
         const audioListener = new THREE.AudioListener();
         this.camera.add(audioListener);
         
-        // Initialize player with correct parameters: scene, camera, audioListener
-        this.player = new Player(this.scene, this.camera, audioListener);
+        // Initialize player with correct parameters: scene, camera, audioListener, resourceManager
+        this.player = new Player(this.scene, this.camera, audioListener, this.resourceManager);
         
         // Make player accessible globally for debugging
         window.game = this;
-    }
-
-    initModelShowcase() {
-        try {
-            debugHelper.log("Initializing model showcase...");
-            this.modelShowcase = new ModelShowcase(this.scene);
-        } catch (error) {
-            debugHelper.log("Error initializing model showcase: " + error.message, "error");
-            
-            // Continue without the showcase by setting it to a simple object
-            // This avoids null reference errors in the update loop
-            this.modelShowcase = {
-                update: () => {}, // Empty update function
-                checkCollisions: () => null // Always return no collision
-            };
-        }
     }
 
     initEventListeners() {
@@ -184,13 +253,13 @@ class Game {
             this.player.update(delta);
         }
         
-        // Update model showcase (asteroids)
-        if (this.modelShowcase) {
-            this.modelShowcase.update(delta);
+        // Update enemy manager
+        if (this.enemyManager) {
+            this.enemyManager.update(delta);
             
-            // Check for collisions between player and showcase entities
+            // Check for collisions between player and enemies
             if (this.player && this.player.boundingBox) {
-                const playerCollision = this.modelShowcase.checkCollisions(this.player.boundingBox);
+                const playerCollision = this.enemyManager.checkCollisions(this.player.boundingBox);
                 
                 // Add safety checks before handling collisions
                 if (playerCollision) {

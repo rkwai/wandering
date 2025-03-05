@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ModelLoader } from '../utils/ModelLoader';
+import { ModelLoader } from '../utils/ModelLoader.js';
 import debugHelper from '../utils/DebugHelper.js';
 
 /**
@@ -12,9 +12,13 @@ export class Asteroid {
      * @param {THREE.Vector3} position - Initial position (optional)
      * @param {THREE.Vector3} velocity - Initial velocity (optional)
      * @param {number} pattern - Movement pattern (0-3, optional)
+     * @param {Object} resourceManager - The resource manager to get models from
+     * @param {Function} onLoaded - Callback function called when the asteroid model is loaded
      */
-    constructor(scene, position = null, velocity = null, pattern = 0) {
+    constructor(scene, position = null, velocity = null, pattern = 0, resourceManager = null, onLoaded = null) {
         this.scene = scene;
+        this.resourceManager = resourceManager;
+        this.onLoaded = onLoaded;
         
         // For side-scrolling, position asteroids to the right of the screen
         this.position = position || new THREE.Vector3(
@@ -81,71 +85,106 @@ export class Asteroid {
     }
     
     /**
-     * Load the GLB model for this asteroid
+     * Load the asteroid model from ResourceManager or directly if ResourceManager is not available
      */
     loadModel() {
-        debugHelper.log("Loading asteroid model...");
+        debugHelper.log("Asteroid: Loading asteroid model...");
         
-        this.modelLoader = new ModelLoader();
-        
-        this.modelLoader.loadModel(
-            'models/asteroids/asteroid_0304124602.glb',
-            (model) => {
-                // Success callback
-                this.model = model;
-                
-                // Set model properties
-                this.model.scale.set(this.scale, this.scale, this.scale);
-                this.model.rotation.copy(this.rotation);
-                
-                // Add emissive properties to make it glow more brightly
-                model.traverse((child) => {
-                    if (child.isMesh && child.material) {
-                        // Add a stronger emissive glow to the asteroid
-                        child.material.emissive = new THREE.Color(0xff5500);
-                        child.material.emissiveIntensity = 0.5;
-                        
-                        // Store the mesh for collision detection
-                        if (!this.collisionMesh) {
-                            this.collisionMesh = child;
-                        }
-                    }
-                });
-                
-                // Add to the asteroid group
-                this.asteroidGroup.add(this.model);
-                
-                // Now that model is loaded, add the group to the scene
-                this.scene.add(this.asteroidGroup);
-                
-                // Add the lights now that the model is loaded
-                if (this.lights) {
-                    this.asteroidGroup.add(this.lights.main);
-                    this.asteroidGroup.add(this.lights.secondary);
-                }
-                
-                // Create initial bounding box
-                this.boundingBox = new THREE.Box3();
-                this.updateBoundingBox();
-                
-                // Mark this as an asteroid for collision handling only after model is loaded
-                this.asteroidGroup.userData.isAsteroid = true;
-                this.asteroidGroup.userData.asteroidRef = this;
-                
-                // Set loaded flag
-                this.isModelLoaded = true;
-                
-                debugHelper.log("Asteroid model loaded successfully");
-            },
-            (error) => {
-                debugHelper.log("Failed to load asteroid model: " + error.message, "error");
-                // Remove the asteroid group if model fails to load
+        // Try to get the model from ResourceManager first
+        if (this.resourceManager) {
+            debugHelper.log("Asteroid: Trying to get model from ResourceManager");
+            const model = this.resourceManager.getAsteroidModel();
+            if (model) {
+                debugHelper.log("Asteroid: Got model from ResourceManager");
+                this.setupModel(model);
+                return;
+            } else {
+                debugHelper.log("Asteroid: ResourceManager returned null model", "error");
+                // Mark for removal if no model is available
                 if (this.asteroidGroup.parent) {
                     this.scene.remove(this.asteroidGroup);
                 }
                 this.markedForRemoval = true;
+                return;
             }
-        );
+        } else {
+            debugHelper.log("Asteroid: No ResourceManager provided", "error");
+            // Mark for removal if no ResourceManager is available
+            if (this.asteroidGroup.parent) {
+                this.scene.remove(this.asteroidGroup);
+            }
+            this.markedForRemoval = true;
+        }
+    }
+    
+    /**
+     * Set up the asteroid model with appropriate properties
+     * @param {THREE.Object3D} model - The asteroid model
+     */
+    setupModel(model) {
+        debugHelper.log("Asteroid: Setting up model");
+        
+        // Success callback
+        this.model = model;
+        
+        // Ensure model is visible
+        this.model.visible = true;
+        
+        // Set model properties
+        this.model.scale.set(this.scale, this.scale, this.scale);
+        this.model.rotation.copy(this.rotation);
+        
+        // Add emissive properties to make it glow more brightly
+        model.traverse((child) => {
+            if (child.isMesh && child.material) {
+                // Clone the material to avoid shared material issues
+                child.material = child.material.clone();
+                
+                // Add a stronger emissive glow to the asteroid
+                child.material.emissive = new THREE.Color(0xff5500);
+                child.material.emissiveIntensity = 0.5;
+                
+                // Ensure material is visible
+                child.material.transparent = false;
+                child.material.opacity = 1.0;
+                
+                // Store the mesh for collision detection
+                if (!this.collisionMesh) {
+                    this.collisionMesh = child;
+                }
+            }
+        });
+        
+        // Add to the asteroid group
+        this.asteroidGroup.add(this.model);
+        
+        // Now that model is loaded, add the group to the scene
+        this.scene.add(this.asteroidGroup);
+        
+        // Add the lights now that the model is loaded
+        if (this.lights) {
+            this.asteroidGroup.add(this.lights.main);
+            this.asteroidGroup.add(this.lights.secondary);
+        }
+        
+        // Create initial bounding box
+        this.boundingBox = new THREE.Box3();
+        this.updateBoundingBox();
+        
+        // Mark this as an asteroid for collision handling only after model is loaded
+        this.asteroidGroup.userData.isAsteroid = true;
+        this.asteroidGroup.userData.asteroidRef = this;
+        
+        // Set loaded flag
+        this.isModelLoaded = true;
+        
+        // Log the asteroid's position for debugging
+        debugHelper.log(`Asteroid: Model setup complete at position (${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}, ${this.position.z.toFixed(1)})`);
+        
+        // Call the onLoaded callback if provided
+        if (this.onLoaded) {
+            this.onLoaded(this);
+        }
     }
     
     /**
@@ -266,7 +305,13 @@ export class Asteroid {
      * @param {number} delta - Time step in seconds
      */
     update(delta) {
-        if (!this.isModelLoaded) return;
+        if (!this.isModelLoaded) {
+            // Log occasionally if model isn't loaded
+            if (Math.random() < 0.01) {
+                debugHelper.log("Asteroid: Update called but model not loaded yet");
+            }
+            return;
+        }
         
         // Initialize pulseTime if not already set
         if (this.pulseTime === undefined) {
@@ -315,7 +360,9 @@ export class Asteroid {
         }
         
         // Check if asteroid needs to be reset
-        if (this.position.x < -100) {
+        if (this.position.x < -200) {
+            // Log when asteroid goes off screen
+            debugHelper.log(`Asteroid: Reset triggered at position ${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}`);
             this.reset();
         }
     }

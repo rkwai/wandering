@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { ModelLoader } from '../utils/ModelLoader';
 import debugHelper from '../utils/DebugHelper.js';
+import { MissileManager } from './MissileManager.js';
 
 export class Player {
-    constructor(scene, camera, audioListener) {
+    constructor(scene, camera, audioListener, resourceManager) {
         this.scene = scene;
         this.camera = camera;
+        this.resourceManager = resourceManager; // Store reference to ResourceManager
         
         // Initialize ship properties
         this.position = new THREE.Vector3(-40, 0, 0); // Start more to the left
@@ -98,7 +100,7 @@ export class Player {
         
         // Load models
         this.loadShipModel();
-        this.loadMissileModel();
+        // No longer loading our own missile model - using ResourceManager instead
         this.loadImpactExplosionModel();
         
         // Explosion tracker
@@ -106,6 +108,9 @@ export class Player {
         
         // Set up the camera for side-scrolling
         this.setupSideScrollCamera();
+        
+        // Create missile manager
+        this.missileManager = new MissileManager(scene, audioListener);
     }
     
     /**
@@ -245,103 +250,6 @@ export class Player {
     }
     
     /**
-     * Load the missile model
-     */
-    loadMissileModel() {
-        console.log("Loading missile GLB model...");
-        
-        this.modelLoader.loadModel('models/spaceships/spaceship_missile_0304125431.glb', (model) => {
-            console.log("Missile GLB model loaded successfully");
-            
-            // Make materials brighter
-            model.traverse((child) => {
-                if (child.isMesh && child.material) {
-                    // If it's an array of materials, process each one
-                    if (Array.isArray(child.material)) {
-                        child.material.forEach(mat => {
-                            mat.emissive = new THREE.Color(0x666666);
-                            mat.emissiveIntensity = 0.5;
-                            mat.color.multiplyScalar(1.5); // Make colors brighter
-                        });
-                    } else {
-                        // Single material
-                        child.material.emissive = new THREE.Color(0x666666);
-                        child.material.emissiveIntensity = 0.5;
-                        child.material.color.multiplyScalar(1.5); // Make colors brighter
-                    }
-                }
-            });
-            
-            this.missileModel = model;
-            
-            // Hide the original model - we'll clone it for each missile
-            model.visible = false;
-            this.scene.add(model);
-        }, (error) => {
-            console.error("Failed to load missile GLB model:", error);
-            // Fallback to default missile model if loading fails
-            this.createDefaultMissileModel();
-        });
-    }
-    
-    /**
-     * Create a simple default missile model as fallback
-     */
-    createDefaultMissileModel() {
-        console.log("Creating 100% guaranteed visible missile model");
-        
-        // Create a fresh group for the missile
-        const missileGroup = new THREE.Group();
-        
-        // Create a SIMPLE missile body using MeshBasicMaterial - always visible regardless of lighting
-        const bodyGeometry = new THREE.CylinderGeometry(0.5, 0.5, 4.0, 8);
-        const bodyMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xff0000, // Bright red
-        });
-        
-        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-        body.rotation.z = Math.PI / 2; // Rotate to point along X axis
-        missileGroup.add(body);
-        
-        // Add a nose cone
-        const noseGeometry = new THREE.ConeGeometry(0.5, 1.5, 8);
-        const noseMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xffff00 // Bright yellow
-        });
-        
-        const nose = new THREE.Mesh(noseGeometry, noseMaterial);
-        nose.position.set(2.5, 0, 0); // Position at the front
-        nose.rotation.z = -Math.PI / 2; // Orient correctly
-        missileGroup.add(nose);
-        
-        // Add visible fins
-        const finGeometry = new THREE.BoxGeometry(1.0, 0.1, 1.0);
-        const finMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xffffff // White
-        });
-        
-        // Add four fins for better visibility from all angles
-        const positions = [
-            [0, 0, 0.5],  // Top
-            [0, 0, -0.5], // Bottom
-            [0, 0.5, 0],  // Right
-            [0, -0.5, 0]  // Left
-        ];
-        
-        for (const [x, y, z] of positions) {
-            const fin = new THREE.Mesh(finGeometry, finMaterial);
-            fin.position.set(-1.0, y, z);
-            missileGroup.add(fin);
-        }
-        
-        // Set the missile model to this simplified group
-        this.missileModel = missileGroup;
-        
-        console.log("Created simple, guaranteed visible missile model");
-        return missileGroup;
-    }
-    
-    /**
      * Set up input event listeners
      */
     setupInputListeners() {
@@ -455,7 +363,7 @@ export class Player {
     }
     
     /**
-     * Update player state
+     * Update the player
      * @param {number} delta - Time step in seconds
      */
     update(delta) {
@@ -474,17 +382,14 @@ export class Player {
             this.missileCooldown -= delta;
         }
         
-        // Update movement
+        // Update player movement
         this.updateMovement(delta);
-        
-        // Update engine effects based on movement
-        this.updateEngineEffects();
         
         // Update missiles
         this.updateMissiles(delta);
         
-        // Update explosions
-        this.updateExplosions(delta);
+        // Update engine effects
+        this.updateEngineEffects();
         
         // Update camera position
         this.updateCameraPosition();
@@ -790,78 +695,16 @@ export class Player {
         console.log("Attempting to fire missile");
         
         try {
-            let missileModel;
+            // Use the missile manager to shoot a missile from the player's position
+            const success = this.missileManager.shootMissile(this.position);
             
-            if (this.missileModel) {
-                // Clone the loaded GLB model
-                missileModel = this.missileModel.clone();
-                missileModel.visible = true;
+            if (success) {
+                console.log("Missile fired successfully");
             } else {
-                // Fallback to default model if GLB hasn't loaded yet
-                missileModel = this.createDefaultMissileModel();
+                console.log("Failed to fire missile (cooldown or not ready)");
             }
-            
-            // Set up the missile for side-scrolling
-            this.setupSideScrollerMissile(missileModel);
-            
-            // Play missile sound
-            this.playMissileSound();
-            
-            console.log("Missile fired successfully");
         } catch (error) {
             console.error("Error shooting missile:", error);
-        }
-    }
-    
-    /**
-     * Sets up a missile for side-scrolling gameplay
-     * @param {THREE.Object3D} model - The missile model
-     */
-    setupSideScrollerMissile(model) {
-        console.log("Setting up missile");
-        
-        // Scale the missile up for visibility
-        model.scale.set(5.0, 5.0, 5.0);
-        
-        // Position the missile at the front of the ship
-        const missilePosition = new THREE.Vector3().copy(this.position);
-        missilePosition.x += 20; // Position in front of the ship
-        model.position.copy(missilePosition);
-        
-        // Add to scene
-        this.scene.add(model);
-        
-        // Set missile properties
-        const missileVelocity = new THREE.Vector3(200, 0, 0); // Horizontal movement
-        
-        // Add to missiles array for tracking
-        this.missiles.push({
-            model: model,
-            velocity: missileVelocity,
-            lifeTime: 0,
-            maxLifeTime: 5 // 5 seconds before disappearing
-        });
-        
-        // Debug log
-        console.log("Missile deployed at position:", missilePosition);
-        
-        // Play sound effect
-        this.playMissileSound();
-    }
-    
-    /**
-     * Plays a missile launch sound
-     */
-    playMissileSound() {
-        if (this.soundsLoaded && this.missileSound && this.missileSound.buffer) {
-            // Clone the sound for overlapping effects
-            if (this.missileSound.isPlaying) {
-                this.missileSound.stop();
-            }
-            this.missileSound.play();
-            debugHelper.log("Missile launch sound played");
-        } else {
-            debugHelper.log("Missile sound not loaded or unavailable");
         }
     }
     
@@ -870,122 +713,48 @@ export class Player {
      * @param {number} delta - Time step in seconds
      */
     updateMissiles(delta) {
-        // Process each missile
-        for (let i = this.missiles.length - 1; i >= 0; i--) {
-            const missile = this.missiles[i];
-            
-            // Update missile position based on velocity
-            missile.model.position.x += missile.velocity.x * delta;
-            missile.model.position.y += missile.velocity.y * delta;
-            missile.model.position.z += missile.velocity.z * delta;
-            
-            // Update missile lifetime
-            missile.lifeTime += delta;
-            
-            // Create or update missile bounding box
-            if (!missile.boundingBox) {
-                missile.boundingBox = new THREE.Box3();
-            }
-            missile.boundingBox.setFromObject(missile.model);
-            
-            // Add a small padding to the missile bounding box for better collision detection
-            const missilePadding = 0.5; // Fixed padding for missiles
-            missile.boundingBox.min.subScalar(missilePadding);
-            missile.boundingBox.max.addScalar(missilePadding);
-            
-            // Check for collisions with asteroids
-            let collisionFound = false;
-            this.scene.traverse((object) => {
-                if (!collisionFound && object.userData && object.userData.isAsteroid) {
-                    try {
-                        // Get the asteroid reference
-                        const asteroid = object.userData.asteroidRef;
-                        
-                        // Only check collision if asteroid is fully loaded and has a valid bounding box
-                        if (asteroid && asteroid.isModelLoaded && asteroid.boundingBox) {
-                            // Check for intersection
-                            if (missile.boundingBox.intersectsBox(asteroid.boundingBox)) {
-                                collisionFound = true;
-                                
-                                // Calculate impact point at the center of the intersection
-                                const impactPoint = new THREE.Vector3();
-                                missile.boundingBox.getCenter(impactPoint);
-                                
-                                // Create explosion at impact point
-                                if (this.impactExplosionModel) {
-                                    const explosion = this.impactExplosionModel.clone();
-                                    explosion.traverse((child) => {
-                                        if (child.material) {
-                                            child.material = child.material.clone();
-                                        }
-                                    });
+        // Use the missile manager to update missiles
+        if (this.missileManager) {
+            this.missileManager.update(delta, (missile, boundingBox) => {
+                // Check for collisions with asteroids
+                let collisionFound = false;
+                let collisionResult = null;
+                
+                this.scene.traverse((object) => {
+                    if (!collisionFound && object.userData && object.userData.isAsteroid) {
+                        try {
+                            // Get the asteroid reference
+                            const asteroid = object.userData.asteroidRef;
+                            
+                            // Only check collision if asteroid is fully loaded and has a valid bounding box
+                            if (asteroid && asteroid.isModelLoaded && asteroid.boundingBox) {
+                                // Check for intersection
+                                if (boundingBox.intersectsBox(asteroid.boundingBox)) {
+                                    collisionFound = true;
                                     
-                                    explosion.position.copy(impactPoint);
-                                    explosion.scale.set(3.0, 3.0, 3.0);
-                                    explosion.visible = true;
-                                    this.scene.add(explosion);
+                                    // Calculate impact point at the center of the intersection
+                                    const impactPoint = new THREE.Vector3();
+                                    boundingBox.getCenter(impactPoint);
                                     
-                                    // Animate the explosion
-                                    let time = 0;
-                                    const duration = 1.0;
-                                    const animate = () => {
-                                        time += delta;
-                                        const progress = time / duration;
-                                        
-                                        if (progress >= 1.0) {
-                                            this.scene.remove(explosion);
-                                            return;
-                                        }
-                                        
-                                        const scale = 3.0 + (progress * 5.0);
-                                        const opacity = 1.0 - progress;
-                                        
-                                        explosion.scale.set(scale, scale, scale);
-                                        explosion.traverse((child) => {
-                                            if (child.material) {
-                                                child.material.opacity = opacity;
-                                            }
-                                        });
-                                        
-                                        requestAnimationFrame(animate);
-                                    };
-                                    animate();
-                                }
-                                
-                                // Create particle explosion effect
-                                this.createExplosion(impactPoint);
-                                
-                                // Remove the missile and asteroid
-                                this.scene.remove(missile.model);
-                                this.missiles.splice(i, 1);
-                                
-                                if (asteroid) {
-                                    asteroid.remove();
-                                }
-                                
-                                // Play impact sound
-                                if (this.soundsLoaded && this.collisionSound && this.collisionSound.buffer) {
-                                    if (this.collisionSound.isPlaying) {
-                                        this.collisionSound.stop();
+                                    // Remove the asteroid
+                                    if (asteroid) {
+                                        asteroid.remove();
                                     }
-                                    this.collisionSound.play();
+                                    
+                                    collisionResult = {
+                                        position: impactPoint,
+                                        object: asteroid
+                                    };
                                 }
                             }
+                        } catch (error) {
+                            console.error("Error in missile collision detection:", error);
                         }
-                    } catch (error) {
-                        console.error("Error in missile collision detection:", error);
                     }
-                }
-            });
-            
-            // Remove missile if it's gone too far or lived too long
-            if (!collisionFound && (missile.lifeTime > missile.maxLifeTime || 
-                missile.model.position.x > 1000 || 
-                missile.model.position.x < -1000)) {
+                });
                 
-                this.scene.remove(missile.model);
-                this.missiles.splice(i, 1);
-            }
+                return collisionResult;
+            });
         }
     }
     
@@ -1027,215 +796,30 @@ export class Player {
     }
     
     /**
-     * Updates all active explosions
-     * @param {number} delta - Time step in seconds
-     */
-    updateExplosions(delta) {
-        if (!this.explosions || this.explosions.length === 0) {
-            return;
-        }
-        
-        for (let i = this.explosions.length - 1; i >= 0; i--) {
-            const explosion = this.explosions[i];
-            
-            explosion.lifetime += delta;
-            
-            if (explosion.lifetime >= explosion.maxLifetime) {
-                if (explosion.light) {
-                    this.scene.remove(explosion.light);
-                }
-                if (explosion.particles) {
-                    this.scene.remove(explosion.particles);
-                }
-                this.explosions.splice(i, 1);
-                continue;
-            }
-            
-            const fadeFactor = 1 - (explosion.lifetime / explosion.maxLifetime);
-            
-            // Update light with less frequent intensity changes
-            if (explosion.light && explosion.lifetime % 0.1 < delta) {
-                explosion.light.intensity = 3 * fadeFactor;
-            }
-            
-            // Update particles with optimized calculations
-            if (explosion.particles) {
-                const positions = explosion.particles.geometry.attributes.position.array;
-                const velocities = explosion.particles.userData.velocities;
-                
-                for (let j = 0; j < velocities.length; j++) {
-                    positions[j * 3] += velocities[j].x * delta;
-                    positions[j * 3 + 1] += velocities[j].y * delta;
-                    positions[j * 3 + 2] += velocities[j].z * delta;
-                    
-                    // Simplified velocity update
-                    velocities[j].multiplyScalar(0.9);
-                }
-                
-                explosion.particles.material.opacity = fadeFactor;
-                explosion.particles.geometry.attributes.position.needsUpdate = true;
-            }
-        }
-    }
-    
-    /**
-     * Creates an explosion effect at the specified position
-     * @param {THREE.Vector3} position - Position for the explosion
-     */
-    createExplosion(position) {
-        // Create a single, optimized light flash
-        const explosionLight = new THREE.PointLight(0xff7700, 3, 15);
-        explosionLight.position.copy(position);
-        this.scene.add(explosionLight);
-        
-        // Reduced particle count and optimized particle system
-        const particleCount = 15; // Reduced from 30
-        const particles = new THREE.BufferGeometry();
-        
-        const positions = new Float32Array(particleCount * 3);
-        const colors = new Float32Array(particleCount * 3);
-        const velocities = [];
-        
-        // Initialize particles with optimized properties
-        for (let i = 0; i < particleCount; i++) {
-            positions[i * 3] = position.x;
-            positions[i * 3 + 1] = position.y;
-            positions[i * 3 + 2] = position.z;
-            
-            // Simplified direction calculation
-            const angle = (Math.PI * 2 * i) / particleCount;
-            const direction = new THREE.Vector3(
-                Math.cos(angle),
-                Math.sin(angle),
-                0
-            );
-            
-            // Consistent speed for better performance
-            const speed = 7;
-            velocities.push(direction.multiplyScalar(speed));
-            
-            // Simplified colors (just orange)
-            colors[i * 3] = 1;     // Red
-            colors[i * 3 + 1] = 0.5; // Green
-            colors[i * 3 + 2] = 0;   // Blue
-        }
-        
-        particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        particles.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        
-        // Optimized material with minimal properties
-        const particleMaterial = new THREE.PointsMaterial({
-            size: 0.8,
-            vertexColors: true,
-            blending: THREE.AdditiveBlending,
-            transparent: true,
-            opacity: 1,
-            depthWrite: false // Optimize transparency
-        });
-        
-        const explosionParticles = new THREE.Points(particles, particleMaterial);
-        explosionParticles.userData.velocities = velocities;
-        
-        this.scene.add(explosionParticles);
-        
-        // Add to explosions array with shorter lifetime
-        if (!this.explosions) {
-            this.explosions = [];
-        }
-        
-        this.explosions.push({
-            light: explosionLight,
-            particles: explosionParticles,
-            lifetime: 0,
-            maxLifetime: 0.5 // Reduced from 1.0 second
-        });
-    }
-
-    /**
      * Load the impact explosion model
      */
     loadImpactExplosionModel() {
-        console.log("Loading impact explosion GLB model...");
-        
-        this.modelLoader.loadModel('models/spaceships/impact_explosion_no__0305031045.glb', (model) => {
-            console.log("Impact explosion model loaded successfully");
-            
-            // Make the model's materials emissive and bright
-            model.traverse((child) => {
-                if (child.isMesh && child.material) {
-                    // Clone the material to avoid sharing
-                    child.material = child.material.clone();
-                    child.material.emissive = new THREE.Color(0xff3300);
-                    child.material.emissiveIntensity = 2.0;
-                    child.material.transparent = true;
-                    child.material.opacity = 1.0;
-                    child.material.blending = THREE.AdditiveBlending;
-                    child.material.depthWrite = false;
-                }
-            });
-            
-            this.impactExplosionModel = model;
-            this.impactExplosionModel.visible = false;
-            this.scene.add(this.impactExplosionModel);
-            
-        }, (error) => {
-            console.error("Failed to load impact explosion model:", error);
-            // Create a fallback explosion model
-            this.createFallbackExplosionModel();
-        });
+        // Use the MissileManager for explosions instead of loading our own
+        this.impactExplosionModel = null;
+        console.log("Impact explosion model loading skipped - using MissileManager for explosions");
     }
-
+    
     /**
-     * Create a fallback explosion model if GLB fails to load
+     * Plays a missile launch sound
      */
-    createFallbackExplosionModel() {
-        console.log("Creating fallback explosion model");
-        
-        // Create a simple sphere for the explosion
-        const geometry = new THREE.SphereGeometry(1, 32, 32);
-        const material = new THREE.MeshBasicMaterial({
-            color: 0xff3300,
-            transparent: true,
-            opacity: 0.8,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
-        });
-        
-        const explosionMesh = new THREE.Mesh(geometry, material);
-        
-        // Add some rings
-        const ringGeometry = new THREE.RingGeometry(1, 2, 32);
-        const ringMaterial = new THREE.MeshBasicMaterial({
-            color: 0xff6600,
-            transparent: true,
-            opacity: 0.6,
-            side: THREE.DoubleSide,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
-        });
-        
-        const ring1 = new THREE.Mesh(ringGeometry, ringMaterial.clone());
-        const ring2 = new THREE.Mesh(ringGeometry, ringMaterial.clone());
-        const ring3 = new THREE.Mesh(ringGeometry, ringMaterial.clone());
-        
-        ring2.rotation.x = Math.PI / 2;
-        ring3.rotation.y = Math.PI / 2;
-        
-        const explosionGroup = new THREE.Group();
-        explosionGroup.add(explosionMesh);
-        explosionGroup.add(ring1);
-        explosionGroup.add(ring2);
-        explosionGroup.add(ring3);
-        
-        explosionGroup.userData.materials = [
-            material,
-            ringMaterial.clone(),
-            ringMaterial.clone(),
-            ringMaterial.clone()
-        ];
-        
-        this.impactExplosionModel = explosionGroup;
-        this.impactExplosionModel.visible = false;
-        this.scene.add(this.impactExplosionModel);
+    playMissileSound() {
+        // This is now handled by the MissileManager
+        // Keeping this method as a no-op for backward compatibility
+    }
+    
+    /**
+     * Create an explosion at the specified position
+     * This is now a wrapper around the MissileManager's createExplosion method
+     * @param {THREE.Vector3} position - The position to create the explosion at
+     */
+    createExplosion(position) {
+        if (this.missileManager) {
+            this.missileManager.createExplosion(position);
+        }
     }
 } 
