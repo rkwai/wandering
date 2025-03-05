@@ -185,40 +185,43 @@ export class Player {
             // Success callback
             this.model = model;
             
+            // Make materials brighter
+            this.model.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    // If it's an array of materials, process each one
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(mat => {
+                            mat.emissive = new THREE.Color(0x666666);
+                            mat.emissiveIntensity = 0.5;
+                            mat.color.multiplyScalar(1.5); // Make colors brighter
+                        });
+                    } else {
+                        // Single material
+                        child.material.emissive = new THREE.Color(0x666666);
+                        child.material.emissiveIntensity = 0.5;
+                        child.material.color.multiplyScalar(1.5); // Make colors brighter
+                    }
+                }
+            });
+            
             // Create a group for the ship and add the model to it
             this.shipGroup = new THREE.Group();
             this.shipGroup.add(this.model);
             
             // Make the ship bigger
-            this.model.scale.set(5.0, 5.0, 5.0); // Increased size for better visibility
+            this.model.scale.set(5.0, 5.0, 5.0); // Increased size for visibility
             
             // Clear existing rotations
             this.model.rotation.set(0, 0, 0);
             this.shipGroup.rotation.set(0, 0, 0);
             
             // First rotate the ship to determine its main direction
-            // Adjust these rotations based on how the model is initially oriented
-            // Try different combinations to get the correct orientation
             this.model.rotation.y = Math.PI; // 180 degrees - point opposite of default
             
             // Then apply the side-scroller orientation 
-            // Make the ship face along positive X-axis (to the right)
             this.shipGroup.rotation.y = 0;  // Align with X axis
             this.shipGroup.rotation.z = 0;  // No roll
             this.shipGroup.rotation.x = 0;  // No pitch
-            
-            console.log("Applied ship rotation:", {
-                model: {
-                    x: this.model.rotation.x * (180/Math.PI),
-                    y: this.model.rotation.y * (180/Math.PI),
-                    z: this.model.rotation.z * (180/Math.PI)
-                },
-                group: {
-                    x: this.shipGroup.rotation.x * (180/Math.PI),
-                    y: this.shipGroup.rotation.y * (180/Math.PI),
-                    z: this.shipGroup.rotation.z * (180/Math.PI)
-                }
-            });
             
             // Position the ship on the left side of the screen
             this.position.set(-40, 0, 0); // Start from left side
@@ -226,12 +229,6 @@ export class Player {
             
             // Add to scene
             this.scene.add(this.shipGroup);
-            
-            // Set up engine particle effects
-            this.setupEngineEffects();
-            
-            // Add ship lights
-            this.addShipLights();
             
             // Create bounding box for collision detection
             this.boundingBox = new THREE.Box3().setFromObject(this.shipGroup);
@@ -247,50 +244,43 @@ export class Player {
     }
     
     /**
-     * Add lights to the spaceship
-     */
-    addShipLights() {
-        // Add a main headlight (spotlight) pointing forward (right for side-scroller)
-        const headlight = new THREE.SpotLight(0xffffff, 5.0, 150, Math.PI / 6, 0.5, 1); // Increased intensity and range
-        headlight.position.set(2, 0.5, 0); // Position at the front of the ship (right side)
-        headlight.target.position.set(10, 0, 0); // Point right
-        this.shipGroup.add(headlight);
-        this.shipGroup.add(headlight.target);
-        
-        // Add a warm glow from the engines
-        const engineLight = new THREE.PointLight(0xff6a00, 4.0, 40); // Increased intensity and range
-        engineLight.position.set(-2, 0, 0); // Position at the back of the ship (left side)
-        this.shipGroup.add(engineLight);
-        
-        // Add bright ambient light around the ship
-        const ambientLight = new THREE.PointLight(0x6666ff, 3.0, 30); // Increased intensity and range
-        ambientLight.position.set(0, 0, 0); // Center of the ship
-        this.shipGroup.add(ambientLight);
-        
-        // Add a second light for better visibility
-        const topLight = new THREE.PointLight(0xffffff, 2.5, 25); // New light
-        topLight.position.set(0, 2, 0); // Above the ship
-        this.shipGroup.add(topLight);
-        
-        // Store lights for later reference
-        this.shipLights = {
-            headlight,
-            engineLight,
-            ambientLight,
-            topLight
-        };
-    }
-    
-    /**
      * Load the missile model
      */
     loadMissileModel() {
-        console.log("Creating missile model...");
+        console.log("Loading missile GLB model...");
         
-        // Skip loading the GLB file and just use our highly visible default missile
-        this.createDefaultMissileModel();
-        
-        console.log("Using default missile model for maximum visibility");
+        this.modelLoader.loadModel('models/spaceships/spaceship_missile_0304125431.glb', (model) => {
+            console.log("Missile GLB model loaded successfully");
+            
+            // Make materials brighter
+            model.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    // If it's an array of materials, process each one
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(mat => {
+                            mat.emissive = new THREE.Color(0x666666);
+                            mat.emissiveIntensity = 0.5;
+                            mat.color.multiplyScalar(1.5); // Make colors brighter
+                        });
+                    } else {
+                        // Single material
+                        child.material.emissive = new THREE.Color(0x666666);
+                        child.material.emissiveIntensity = 0.5;
+                        child.material.color.multiplyScalar(1.5); // Make colors brighter
+                    }
+                }
+            });
+            
+            this.missileModel = model;
+            
+            // Hide the original model - we'll clone it for each missile
+            model.visible = false;
+            this.scene.add(model);
+        }, (error) => {
+            console.error("Failed to load missile GLB model:", error);
+            // Fallback to default missile model if loading fails
+            this.createDefaultMissileModel();
+        });
     }
     
     /**
@@ -782,12 +772,16 @@ export class Player {
         console.log("Attempting to fire missile");
         
         try {
-            // Use our default missile model
-            const missileModel = this.createDefaultMissileModel();
+            let missileModel;
             
-            // Add trail and lights before setting up the missile
-            this.createMissileTrail(missileModel);
-            this.addMissileLight(missileModel);
+            if (this.missileModel) {
+                // Clone the loaded GLB model
+                missileModel = this.missileModel.clone();
+                missileModel.visible = true;
+            } else {
+                // Fallback to default model if GLB hasn't loaded yet
+                missileModel = this.createDefaultMissileModel();
+            }
             
             // Set up the missile for side-scrolling
             this.setupSideScrollerMissile(missileModel);
@@ -806,10 +800,8 @@ export class Player {
      * @param {THREE.Object3D} model - The missile model
      */
     setupSideScrollerMissile(model) {
-        console.log("Setting up reliable missile with backup sphere");
+        console.log("Setting up missile");
         
-        // 1. Main missile setup
-        // ----------------------
         // Scale the missile up for visibility
         model.scale.set(5.0, 5.0, 5.0);
         
@@ -821,24 +813,12 @@ export class Player {
         // Add to scene
         this.scene.add(model);
         
-        // 2. Create backup visible object
-        // ------------------------------
-        // Create a red sphere that will be visible even if missile isn't
-        const backupSphere = new THREE.Mesh(
-            new THREE.SphereGeometry(3.0, 16, 16),
-            new THREE.MeshBasicMaterial({ color: 0xff0000 })
-        );
-        backupSphere.position.copy(missilePosition);
-        this.scene.add(backupSphere);
-        
-        // 3. Set missile properties
-        // ------------------------
+        // Set missile properties
         const missileVelocity = new THREE.Vector3(200, 0, 0); // Horizontal movement
         
         // Add to missiles array for tracking
         this.missiles.push({
             model: model,
-            backupObject: backupSphere,
             velocity: missileVelocity,
             lifeTime: 0,
             maxLifeTime: 5 // 5 seconds before disappearing
@@ -881,56 +861,6 @@ export class Player {
             missile.model.position.y += missile.velocity.y * delta;
             missile.model.position.z += missile.velocity.z * delta;
             
-            // Update the backup sphere position to match the missile
-            if (missile.backupObject) {
-                missile.backupObject.position.copy(missile.model.position);
-            }
-            
-            // Update trail particles if the missile has a trail
-            if (missile.model.userData.trail) {
-                // Update each particle in the trail
-                const particles = missile.model.userData.trail.geometry.getAttribute('position');
-                const colors = missile.model.userData.trail.geometry.getAttribute('color');
-                
-                // Shift particles back (older positions)
-                for (let j = particles.count - 1; j > 0; j--) {
-                    // Copy position and color from previous particle
-                    particles.setXYZ(j, 
-                        particles.getX(j-1),
-                        particles.getY(j-1),
-                        particles.getZ(j-1)
-                    );
-                    
-                    // Fade out the particles
-                    const alpha = j / particles.count;
-                    colors.setXYZ(j, 1.0, 0.3 * alpha, 0.1 * alpha);
-                }
-                
-                // Set the first particle to the missile's current position
-                particles.setXYZ(0, 
-                    missile.model.position.x,
-                    missile.model.position.y,
-                    missile.model.position.z
-                );
-                colors.setXYZ(0, 1.0, 0.6, 0.2); // Bright color for newest particle
-                
-                // Mark attributes for update
-                particles.needsUpdate = true;
-                colors.needsUpdate = true;
-            }
-            
-            // Update light pulse effect
-            if (missile.model.userData.pulseLight) {
-                const pulseLight = missile.model.userData.pulseLight;
-                const time = performance.now() * 0.003;
-                const pulseIntensity = 2.0 + Math.sin(time * 10) * 1.0;
-                pulseLight.light.intensity = pulseIntensity;
-                
-                if (pulseLight.secondLight) {
-                    pulseLight.secondLight.intensity = 1.0 + Math.cos(time * 10) * 0.5;
-                }
-            }
-            
             // Update missile lifetime
             missile.lifeTime += delta;
             
@@ -941,101 +871,11 @@ export class Player {
                 
                 // Remove from scene
                 this.scene.remove(missile.model);
-                if (missile.backupObject) {
-                    this.scene.remove(missile.backupObject);
-                }
-                if (missile.model.userData.trail) {
-                    this.scene.remove(missile.model.userData.trail.points);
-                }
                 
                 // Remove from array
                 this.missiles.splice(i, 1);
                 console.log("Missile removed, remaining:", this.missiles.length);
             }
-        }
-    }
-    
-    /**
-     * Creates a particle trail for a missile
-     * @param {THREE.Object3D} missileModel - The missile model to add a trail to
-     */
-    createMissileTrail(missileModel) {
-        console.log("Creating missile trail");
-        try {
-            // Create trail particle system
-            const particleCount = 40;
-            const particles = new Float32Array(particleCount * 3);
-            const colors = new Float32Array(particleCount * 3);
-            
-            // Initialize all particles at the missile position
-            for (let i = 0; i < particleCount; i++) {
-                particles[i * 3] = missileModel.position.x;
-                particles[i * 3 + 1] = missileModel.position.y;
-                particles[i * 3 + 2] = missileModel.position.z;
-                
-                // Set gradient colors - bright at front, fade to transparent
-                const alpha = 1.0 - (i / particleCount);
-                colors[i * 3] = 1.0;         // Red
-                colors[i * 3 + 1] = 0.5 * alpha;  // Green - decreases with alpha
-                colors[i * 3 + 2] = 0.2 * alpha;  // Blue - decreases with alpha
-            }
-            
-            // Create trail geometry
-            const trailGeometry = new THREE.BufferGeometry();
-            trailGeometry.setAttribute('position', new THREE.BufferAttribute(particles, 3));
-            trailGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-            
-            // Create trail material
-            const trailMaterial = new THREE.PointsMaterial({
-                size: 1.0,
-                vertexColors: true,
-                blending: THREE.AdditiveBlending,
-                transparent: true,
-                depthWrite: false
-            });
-            
-            // Create points object
-            const trailPoints = new THREE.Points(trailGeometry, trailMaterial);
-            this.scene.add(trailPoints);
-            
-            // Store trail reference on the missile for updates
-            missileModel.userData.trail = {
-                points: trailPoints,
-                geometry: trailGeometry,
-                material: trailMaterial
-            };
-            
-            console.log("Missile trail created successfully");
-        } catch (error) {
-            console.error("Error creating missile trail:", error);
-        }
-    }
-    
-    /**
-     * Add a light to the missile
-     */
-    addMissileLight(missileModel) {
-        console.log("Adding lights to missile");
-        try {
-            // Add a bright primary light (red)
-            const mainLight = new THREE.PointLight(0xff0000, 3.0, 10);
-            mainLight.position.set(0, 0, 0); // Centered on missile
-            missileModel.add(mainLight);
-            
-            // Add a secondary light (yellow)
-            const secondaryLight = new THREE.PointLight(0xffaa00, 1.5, 8);
-            secondaryLight.position.set(-1, 0, 0); // Slightly behind
-            missileModel.add(secondaryLight);
-            
-            // Store lights for pulsing effect
-            missileModel.userData.pulseLight = {
-                light: mainLight,
-                secondLight: secondaryLight
-            };
-            
-            console.log("Missile lights added successfully");
-        } catch (error) {
-            console.error("Error adding missile lights:", error);
         }
     }
     
