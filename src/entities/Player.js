@@ -209,8 +209,8 @@ export class Player {
             this.shipGroup = new THREE.Group();
             this.shipGroup.add(this.model);
             
-            // Make the ship bigger
-            this.model.scale.set(5.0, 5.0, 5.0); // Increased size for visibility
+            // Make the ship bigger - increased by 15%
+            this.model.scale.set(5.75, 5.75, 5.75); // Increased from 5.0 to 5.75 (15% increase)
             
             // Clear existing rotations
             this.model.rotation.set(0, 0, 0);
@@ -538,15 +538,51 @@ export class Player {
         if (this.position.x < this.minX) this.position.x = this.minX;
         if (this.position.x > this.maxX) this.position.x = this.maxX;
         
-        // Update ship model position if available
+        // Update ship model position and rotation if available
         if (this.shipGroup) {
+            // Update position
             this.shipGroup.position.copy(this.position);
+            
+            // Calculate target rotation based on vertical movement
+            const targetRotationX = this.calculateShipTilt();
+            
+            // Smoothly interpolate current rotation to target rotation
+            const rotationLerpFactor = 0.1; // Adjust this value to change tilt responsiveness
+            this.shipGroup.rotation.x = THREE.MathUtils.lerp(
+                this.shipGroup.rotation.x,
+                targetRotationX,
+                rotationLerpFactor
+            );
         }
         
         // Update bounding box
         if (this.boundingBox) {
             this.boundingBox.setFromObject(this.shipGroup);
         }
+    }
+    
+    /**
+     * Calculate ship tilt based on vertical movement
+     * @returns {number} Target rotation in radians
+     */
+    calculateShipTilt() {
+        const maxTiltAngle = Math.PI / 8; // 22.5 degrees maximum tilt (reduced from 30)
+        let targetTilt = 0;
+        
+        if (this.inputControls.up) {
+            // Bank left when moving up
+            targetTilt = maxTiltAngle;
+        } else if (this.inputControls.down) {
+            // Bank right when moving down
+            targetTilt = -maxTiltAngle;
+        }
+        
+        // Add a slight tilt based on vertical velocity for smooth transitions
+        if (!this.inputControls.up && !this.inputControls.down) {
+            targetTilt = -(this.velocity.y / this.verticalSpeed) * (maxTiltAngle * 0.5);
+        }
+        
+        return targetTilt;
     }
     
     /**
@@ -846,96 +882,95 @@ export class Player {
             // Update missile lifetime
             missile.lifeTime += delta;
             
-            // Check for collisions with asteroids
-            let missileBox = new THREE.Box3().setFromObject(missile.model);
+            // Create or update missile bounding box
+            if (!missile.boundingBox) {
+                missile.boundingBox = new THREE.Box3();
+            }
+            missile.boundingBox.setFromObject(missile.model);
             
+            // Add a small padding to the missile bounding box for better collision detection
+            const missilePadding = 0.5; // Fixed padding for missiles
+            missile.boundingBox.min.subScalar(missilePadding);
+            missile.boundingBox.max.addScalar(missilePadding);
+            
+            // Check for collisions with asteroids
+            let collisionFound = false;
             this.scene.traverse((object) => {
-                if (object.userData && object.userData.isAsteroid) {
+                if (!collisionFound && object.userData && object.userData.isAsteroid) {
                     try {
-                        // Get the asteroid's bounding box
-                        const asteroidBox = new THREE.Box3().setFromObject(object);
+                        // Get the asteroid reference
+                        const asteroid = object.userData.asteroidRef;
                         
-                        // Check for intersection
-                        if (missileBox.intersectsBox(asteroidBox)) {
-                            console.log("Missile hit asteroid - creating explosion");
-                            
-                            // Calculate impact point
-                            const impactPoint = new THREE.Vector3();
-                            missileBox.getCenter(impactPoint);
-                            
-                            // Create explosion at impact point
-                            if (this.impactExplosionModel) {
-                                // Clone the explosion model
-                                const explosion = this.impactExplosionModel.clone();
+                        // Only check collision if asteroid is fully loaded and has a valid bounding box
+                        if (asteroid && asteroid.isModelLoaded && asteroid.boundingBox) {
+                            // Check for intersection
+                            if (missile.boundingBox.intersectsBox(asteroid.boundingBox)) {
+                                collisionFound = true;
                                 
-                                // Ensure all materials are cloned
-                                explosion.traverse((child) => {
-                                    if (child.material) {
-                                        child.material = child.material.clone();
-                                    }
-                                });
+                                // Calculate impact point at the center of the intersection
+                                const impactPoint = new THREE.Vector3();
+                                missile.boundingBox.getCenter(impactPoint);
                                 
-                                // Position and scale the explosion
-                                explosion.position.copy(impactPoint);
-                                explosion.scale.set(3.0, 3.0, 3.0);
-                                explosion.visible = true;
-                                
-                                // Add to scene
-                                this.scene.add(explosion);
-                                
-                                // Animate the explosion
-                                let time = 0;
-                                const duration = 1.0; // 1 second duration
-                                const animate = () => {
-                                    time += delta;
-                                    const progress = time / duration;
-                                    
-                                    if (progress >= 1.0) {
-                                        this.scene.remove(explosion);
-                                        return;
-                                    }
-                                    
-                                    // Scale up and fade out
-                                    const scale = 3.0 + (progress * 5.0); // Scale from 3 to 8
-                                    const opacity = 1.0 - progress;
-                                    
-                                    explosion.scale.set(scale, scale, scale);
-                                    
-                                    // Update material opacity
+                                // Create explosion at impact point
+                                if (this.impactExplosionModel) {
+                                    const explosion = this.impactExplosionModel.clone();
                                     explosion.traverse((child) => {
                                         if (child.material) {
-                                            child.material.opacity = opacity;
+                                            child.material = child.material.clone();
                                         }
                                     });
                                     
-                                    requestAnimationFrame(animate);
-                                };
-                                
-                                animate();
-                            }
-                            
-                            // Create particle explosion effect
-                            this.createExplosion(impactPoint);
-                            
-                            // Remove the missile and asteroid
-                            this.scene.remove(missile.model);
-                            this.missiles.splice(i, 1);
-                            
-                            if (object.userData.asteroidRef) {
-                                object.userData.asteroidRef.remove();
-                            } else {
-                                this.scene.remove(object);
-                            }
-                            
-                            // Play impact sound
-                            if (this.soundsLoaded && this.collisionSound && this.collisionSound.buffer) {
-                                if (this.collisionSound.isPlaying) {
-                                    this.collisionSound.stop();
+                                    explosion.position.copy(impactPoint);
+                                    explosion.scale.set(3.0, 3.0, 3.0);
+                                    explosion.visible = true;
+                                    this.scene.add(explosion);
+                                    
+                                    // Animate the explosion
+                                    let time = 0;
+                                    const duration = 1.0;
+                                    const animate = () => {
+                                        time += delta;
+                                        const progress = time / duration;
+                                        
+                                        if (progress >= 1.0) {
+                                            this.scene.remove(explosion);
+                                            return;
+                                        }
+                                        
+                                        const scale = 3.0 + (progress * 5.0);
+                                        const opacity = 1.0 - progress;
+                                        
+                                        explosion.scale.set(scale, scale, scale);
+                                        explosion.traverse((child) => {
+                                            if (child.material) {
+                                                child.material.opacity = opacity;
+                                            }
+                                        });
+                                        
+                                        requestAnimationFrame(animate);
+                                    };
+                                    animate();
                                 }
-                                this.collisionSound.play();
+                                
+                                // Create particle explosion effect
+                                this.createExplosion(impactPoint);
+                                
+                                // Remove the missile and asteroid
+                                this.scene.remove(missile.model);
+                                this.missiles.splice(i, 1);
+                                
+                                if (asteroid) {
+                                    asteroid.remove();
+                                }
+                                
+                                // Play impact sound
+                                if (this.soundsLoaded && this.collisionSound && this.collisionSound.buffer) {
+                                    if (this.collisionSound.isPlaying) {
+                                        this.collisionSound.stop();
+                                    }
+                                    this.collisionSound.play();
+                                }
                             }
-                            
-                            return; // Exit the traverse early since missile is destroyed
                         }
                     } catch (error) {
                         console.error("Error in missile collision detection:", error);
@@ -944,9 +979,9 @@ export class Player {
             });
             
             // Remove missile if it's gone too far or lived too long
-            if (missile.lifeTime > missile.maxLifeTime || 
+            if (!collisionFound && (missile.lifeTime > missile.maxLifeTime || 
                 missile.model.position.x > 1000 || 
-                missile.model.position.x < -1000) {
+                missile.model.position.x < -1000)) {
                 
                 this.scene.remove(missile.model);
                 this.missiles.splice(i, 1);

@@ -146,6 +146,43 @@ export class ModelShowcase {
         
         // Remove any entities marked for removal
         this.cleanupEntities();
+        
+        // Check if we need to spawn more asteroids to maintain the count
+        const desiredAsteroidCount = 20; // Maintain 20 asteroids at all times
+        const currentCount = this.entities.asteroids.length;
+        
+        if (currentCount < desiredAsteroidCount) {
+            const numToSpawn = desiredAsteroidCount - currentCount;
+            for (let i = 0; i < numToSpawn; i++) {
+                // Create new asteroid with random position on right side
+                const xPos = Math.random() * 300 + 200; // 200-500 units from right
+                const yPos = (Math.random() - 0.5) * 100; // Full height coverage
+                const position = new THREE.Vector3(xPos, yPos, 0);
+                
+                // Create different movement patterns
+                const pattern = Math.floor(Math.random() * 4);
+                let velocity;
+                
+                switch (pattern) {
+                    case 0: // Standard left movement
+                        velocity = new THREE.Vector3(-Math.random() * 20 - 10, 0, 0);
+                        break;
+                    case 1: // Diagonal down
+                        velocity = new THREE.Vector3(-Math.random() * 20 - 10, -Math.random() * 10 - 5, 0);
+                        break;
+                    case 2: // Diagonal up
+                        velocity = new THREE.Vector3(-Math.random() * 20 - 10, Math.random() * 10 + 5, 0);
+                        break;
+                    case 3: // Sine wave pattern
+                        velocity = new THREE.Vector3(-Math.random() * 20 - 10, 0, 0);
+                        break;
+                }
+                
+                // Create and add the new asteroid
+                const asteroid = new Asteroid(this.scene, position, velocity, pattern);
+                this.entities.asteroids.push(asteroid);
+            }
+        }
     }
     
     /**
