@@ -84,36 +84,49 @@ class Game {
     initThree() {
         // Create scene
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x000000); // Black background for space
+        this.scene.background = new THREE.Color(0x000000); // Pure black background for space
         
         // No fog in space
         this.scene.fog = null;
 
-        // Create camera - will be replaced with orthographic camera in Player class for side-scrolling
-        this.camera = new THREE.PerspectiveCamera(
-            75, 
-            window.innerWidth / window.innerHeight, 
-            0.1, 
-            20000 // Much larger far plane for space distances
+        // Create orthographic camera for side-scrolling
+        const aspect = window.innerWidth / window.innerHeight;
+        const frustumSize = 100; // Larger view size for side-scrolling
+        
+        this.camera = new THREE.OrthographicCamera(
+            frustumSize * aspect / -2,
+            frustumSize * aspect / 2,
+            frustumSize / 2,
+            frustumSize / -2,
+            0.1,
+            1000
         );
-        this.camera.position.set(0, 0, 50); // Position camera in front for side view
+        
+        // Position camera for side view (looking at XY plane)
+        this.camera.position.set(0, 0, 100);
         this.camera.lookAt(0, 0, 0);
         
         // Create renderer
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer = new THREE.WebGLRenderer({ 
+            antialias: false, // Disable antialiasing for better performance
+            powerPreference: 'high-performance' // Request high-performance GPU
+        });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // Limit pixel ratio for better performance
+        this.renderer.shadowMap.enabled = false; // Disable shadow maps for better performance
         document.getElementById('game-container').appendChild(this.renderer.domElement);
         
-        // Add ambient light (brighter for side-scroller)
-        const ambientLight = new THREE.AmbientLight(0x404060, 0.8);
+        // Performance optimization
+        this.renderer.physicallyCorrectLights = false;
+        this.renderer.outputEncoding = THREE.LinearEncoding; // Use simpler encoding
+        
+        // Add much brighter ambient light
+        const ambientLight = new THREE.AmbientLight(0x404060, 2.0); // Increased intensity
         this.scene.add(ambientLight);
         
-        // Add directional light (distant sun)
-        this.directionalLight = new THREE.DirectionalLight(0xffffcc, 1.0);
-        this.directionalLight.position.set(0, 0, 100); // Position light behind camera for side-scroller
+        // Add much brighter directional light
+        this.directionalLight = new THREE.DirectionalLight(0xffffcc, 2.5); // Increased intensity
+        this.directionalLight.position.set(100, 0, 100); // Position light for side-scroller
         this.directionalLight.castShadow = true;
         
         // Set up shadow properties
@@ -128,7 +141,12 @@ class Game {
         
         this.scene.add(this.directionalLight);
         
-        // Add space environment effects (stars, nebulae, etc.)
+        // Add a second directional light from the opposite side for better illumination
+        const backLight = new THREE.DirectionalLight(0xccccff, 1.5);
+        backLight.position.set(-100, 0, 100);
+        this.scene.add(backLight);
+        
+        // Add space environment (now only manages minimal background elements)
         this.spaceEnvironment = new SpaceEnvironment(this.scene);
         
         // Set game mode
@@ -191,40 +209,58 @@ class Game {
     }
 
     animate() {
-        requestAnimationFrame(this.animate.bind(this));
+        // Use bind-less requestAnimationFrame for better performance
+        requestAnimationFrame(() => this.animate());
         
-        const delta = this.clock ? this.clock.getDelta() : 0;
+        // Use a fixed delta time for consistent physics
+        const rawDelta = this.clock ? this.clock.getDelta() : 0.016;
+        // Cap delta to prevent large jumps during lag spikes
+        const delta = Math.min(rawDelta, 0.1);
+        
         if (!this.clock) {
             this.clock = new THREE.Clock();
         }
         
-        // Update player
+        // Update player first for responsive controls
         if (this.player) {
             this.player.update(delta);
         }
         
-        // Update space environment
-        if (this.spaceEnvironment) {
-            this.spaceEnvironment.update(delta);
-        }
-        
-        // Update celestial bodies
-        if (this.worldGenerator && this.worldGenerator.celestialBodies) {
-            this.worldGenerator.celestialBodies.update(delta);
-        }
-        
-        // Update model showcase
+        // Update model showcase (asteroids)
         if (this.modelShowcase) {
             this.modelShowcase.update(delta);
             
             // Check for collisions between player and showcase entities
             if (this.player && this.player.boundingBox) {
                 const playerCollision = this.modelShowcase.checkCollisions(this.player.boundingBox);
-                if (playerCollision && playerCollision.handleCollision) {
-                    this.player.handleCollision(playerCollision);
-                    playerCollision.handleCollision(this.player);
+                
+                // Add safety checks before handling collisions
+                if (playerCollision) {
+                    // Handle player collision with object
+                    if (typeof this.player.handleCollision === 'function') {
+                        this.player.handleCollision(playerCollision);
+                    }
+                    
+                    // Handle object collision with player
+                    if (playerCollision.handleCollision && typeof playerCollision.handleCollision === 'function') {
+                        playerCollision.handleCollision(this.player);
+                    } else if (playerCollision.userData && playerCollision.userData.parent && 
+                              typeof playerCollision.userData.parent.handleCollision === 'function') {
+                        // Try to use parent object's handleCollision if available
+                        playerCollision.userData.parent.handleCollision(this.player);
+                    }
                 }
             }
+        }
+        
+        // Update space environment (lower priority)
+        if (this.spaceEnvironment) {
+            this.spaceEnvironment.update(delta);
+        }
+        
+        // Update celestial bodies (lowest priority)
+        if (this.worldGenerator && this.worldGenerator.celestialBodies) {
+            this.worldGenerator.celestialBodies.update(delta);
         }
         
         // Render the scene

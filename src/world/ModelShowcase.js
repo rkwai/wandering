@@ -33,18 +33,10 @@ export class ModelShowcase {
      * Initialize the showcase with all models
      */
     init() {
-        // Create a distant planet
-        this.planet = new Planet(this.scene, {
-            position: new THREE.Vector3(800, 100, -1500),
-            scale: 150,
-            rotationSpeed: 0.002,
-            atmosphereColor: 0x62a0ff,
-            emissive: true,
-            addLight: true
-        });
+        // No planets - removed as requested
         
-        // Create a collection of asteroids
-        this.createAsteroidField(15);
+        // Create a collection of asteroids - reduced for better performance
+        this.createAsteroidField(10); // Reduced from 25 to 10 for better performance
         
         // Set up the missile model 
         this.setupMissileModel();
@@ -57,9 +49,40 @@ export class ModelShowcase {
      * @param {number} count - Number of asteroids to create
      */
     createAsteroidField(count) {
-        for (let i = 0; i < count; i++) {
-            // Create asteroids at varied positions
-            const asteroid = new Asteroid(this.scene);
+        // For Gradius-style, we need more asteroids that spawn off-screen
+        const actualCount = count * 2; // Double the asteroid count
+        
+        for (let i = 0; i < actualCount; i++) {
+            // Asteroids start from the right side of the screen
+            const xPos = Math.random() * 300 + 100; // 100-400 units from right
+            
+            // Varied vertical positions
+            const yPos = (Math.random() - 0.5) * 120; // Full height coverage
+            
+            const position = new THREE.Vector3(xPos, yPos, 0);
+            
+            // Gradius-style enemies have varied movement patterns
+            let velocity;
+            
+            // Create different movement patterns
+            const pattern = Math.floor(Math.random() * 4);
+            switch (pattern) {
+                case 0: // Standard left movement
+                    velocity = new THREE.Vector3(-Math.random() * 20 - 15, 0, 0);
+                    break;
+                case 1: // Diagonal down
+                    velocity = new THREE.Vector3(-Math.random() * 20 - 15, -Math.random() * 10 - 5, 0);
+                    break;
+                case 2: // Diagonal up
+                    velocity = new THREE.Vector3(-Math.random() * 20 - 15, Math.random() * 10 + 5, 0);
+                    break;
+                case 3: // Sine wave pattern (vertical movement handled in Asteroid class)
+                    velocity = new THREE.Vector3(-Math.random() * 20 - 15, 0, 0);
+                    break;
+            }
+            
+            // Create the asteroid with the position and velocity
+            const asteroid = new Asteroid(this.scene, position, velocity, pattern);
             this.entities.asteroids.push(asteroid);
         }
     }
@@ -182,7 +205,8 @@ export class ModelShowcase {
         for (const asteroid of this.entities.asteroids) {
             // Only check asteroids that have a valid boundingBox
             if (asteroid.boundingBox && boundingBox.intersectsBox(asteroid.boundingBox)) {
-                return asteroid;
+                // Return the asteroidGroup which has the userData property
+                return asteroid.asteroidGroup || asteroid;
             }
         }
         

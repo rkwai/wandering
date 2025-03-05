@@ -8,21 +8,33 @@ export class Player {
         this.camera = camera;
         
         // Initialize ship properties
-        this.position = new THREE.Vector3(0, 0, 0);
+        this.position = new THREE.Vector3(-40, 0, 0); // Start more to the left
         this.velocity = new THREE.Vector3(0, 0, 0);
         this.acceleration = new THREE.Vector3(0, 0, 0);
         this.rotation = new THREE.Euler(0, 0, 0, 'YXZ');
         this.rotationVelocity = new THREE.Vector3(0, 0, 0);
         this.quaternion = new THREE.Quaternion(); // Initialize quaternion for rotation
         
-        // Movement settings for side-scrolling
-        this.maxAcceleration = 30; // Units per second squared
-        this.maxSpeed = 30;        // Maximum speed in units per second
-        this.moveSpeed = 20;       // Base movement speed for side-scrolling
-        this.dragFactor = 0.9;     // Drag to slow the ship when not accelerating
+        // Gradius-style side-scroller settings
+        this.autoScrollSpeed = 30;       // Automatic scroll speed (how fast the world moves)
+        this.verticalSpeed = 100;        // Vertical movement speed
+        this.horizontalAdjustSpeed = 40; // Speed for minor horizontal adjustments
+        this.maxForwardSpeed = 60;       // Max additional forward speed
+        this.maxBackwardSpeed = -15;     // Max backward speed (negative)
+        this.dragFactor = 0.92;          // Slight drag for arcade feel
+        
+        // Auto-fire settings
+        this.autoFire = false;            // Disable auto-fire - only shoot when space is pressed
+        this.missileCooldownTime = 0.2;  // Gradius-like fire rate
+        
+        // Default position boundaries
+        this.minY = -45;                 // Bottom screen boundary
+        this.maxY = 45;                  // Top screen boundary
+        this.minX = -45;                 // Left screen boundary 
+        this.maxX = 45;                  // Right screen boundary
         
         // Speed limits
-        this.normalMaxSpeed = 30;
+        this.normalMaxSpeed = 120;
         
         // Ship model placeholder until GLB is loaded
         this.model = null;
@@ -71,7 +83,7 @@ export class Player {
         // Weapon systems
         this.missiles = [];
         this.missileCooldown = 0;
-        this.missileCooldownTime = 0.3; // Reduced cooldown for side-scroller gameplay
+        this.missileCooldownTime = 0.1; // Reduced from 0.15 to 0.1 for even faster firing
         
         // Audio
         this.audioListener = audioListener;
@@ -166,223 +178,301 @@ export class Player {
      * Loads the ship GLB model
      */
     loadShipModel() {
-        // Try to get a ship model from the showcase first (which should be preloaded)
-        if (window.game && window.game.modelShowcase) {
-            const shipModel = window.game.modelShowcase.getShipModel();
-            if (shipModel) {
-                debugHelper.log("Using ship model from showcase");
-                
-                // Clone the model to avoid modifying the original
-                this.model = shipModel.clone();
-                
-                // Scale the model up for side-scrolling view
-                this.model.scale.set(3.0, 3.0, 3.0); // Make the ship bigger
-                
-                // Flip the model on Y axis for side-scrolling
-                this.model.rotation.set(0, Math.PI, 0);
-                
-                // Create a group for the ship
-                this.shipGroup = new THREE.Group();
-                this.shipGroup.add(this.model);
-                this.shipGroup.position.copy(this.position);
-                
-                // Add to scene
-                this.scene.add(this.shipGroup);
-                
-                // Create bounding box for collision detection
-                this.boundingBox = new THREE.Box3().setFromObject(this.model);
-                
-                // Set up engine effects
-                this.setupEngineEffects();
-                
-                return;
-            }
-        }
+        debugHelper.log("Loading spaceship model...");
         
-        // If no model from showcase, load directly
-        this.modelLoader.loadModel(
-            'models/spaceships/spaceship_0304124415.glb',
-            (model) => {
-                debugHelper.log("Ship model loaded successfully");
-                
-                // Store the model
-                this.model = model;
-                
-                // Scale the model up for side-scrolling view
-                this.model.scale.set(3.0, 3.0, 3.0); // Make the ship bigger
-                
-                // Flip the model on Y axis for side-scrolling
-                this.model.rotation.set(0, Math.PI, 0);
-                
-                // Create a group for the ship
-                this.shipGroup = new THREE.Group();
-                this.shipGroup.add(this.model);
-                this.shipGroup.position.copy(this.position);
-                
-                // Add to scene
-                this.scene.add(this.shipGroup);
-                
-                // Create bounding box for collision detection
-                this.boundingBox = new THREE.Box3().setFromObject(this.model);
-                
-                // Set up engine effects
-                this.setupEngineEffects();
-            },
-            (error) => {
-                debugHelper.log("Failed to load ship model: " + error.message, "error");
-                // Do not create a default ship, just log the error
-            }
-        );
+        // Load the spaceship model
+        this.modelLoader.loadModel('models/spaceships/spaceship_0304124415.glb', (model) => {
+            // Success callback
+            this.model = model;
+            
+            // Create a group for the ship and add the model to it
+            this.shipGroup = new THREE.Group();
+            this.shipGroup.add(this.model);
+            
+            // Make the ship bigger
+            this.model.scale.set(5.0, 5.0, 5.0); // Increased size for better visibility
+            
+            // Clear existing rotations
+            this.model.rotation.set(0, 0, 0);
+            this.shipGroup.rotation.set(0, 0, 0);
+            
+            // First rotate the ship to determine its main direction
+            // Adjust these rotations based on how the model is initially oriented
+            // Try different combinations to get the correct orientation
+            this.model.rotation.y = Math.PI; // 180 degrees - point opposite of default
+            
+            // Then apply the side-scroller orientation 
+            // Make the ship face along positive X-axis (to the right)
+            this.shipGroup.rotation.y = 0;  // Align with X axis
+            this.shipGroup.rotation.z = 0;  // No roll
+            this.shipGroup.rotation.x = 0;  // No pitch
+            
+            console.log("Applied ship rotation:", {
+                model: {
+                    x: this.model.rotation.x * (180/Math.PI),
+                    y: this.model.rotation.y * (180/Math.PI),
+                    z: this.model.rotation.z * (180/Math.PI)
+                },
+                group: {
+                    x: this.shipGroup.rotation.x * (180/Math.PI),
+                    y: this.shipGroup.rotation.y * (180/Math.PI),
+                    z: this.shipGroup.rotation.z * (180/Math.PI)
+                }
+            });
+            
+            // Position the ship on the left side of the screen
+            this.position.set(-40, 0, 0); // Start from left side
+            this.shipGroup.position.copy(this.position);
+            
+            // Add to scene
+            this.scene.add(this.shipGroup);
+            
+            // Set up engine particle effects
+            this.setupEngineEffects();
+            
+            // Add ship lights
+            this.addShipLights();
+            
+            // Create bounding box for collision detection
+            this.boundingBox = new THREE.Box3().setFromObject(this.shipGroup);
+            
+            debugHelper.log("Spaceship model loaded successfully!");
+        }, (error) => {
+            // Error callback
+            debugHelper.log("Failed to load spaceship model: " + error.message, "error");
+            
+            // Create a simple placeholder ship
+            this.createPlaceholderShip();
+        });
     }
     
     /**
-     * Loads the missile model template
+     * Add lights to the spaceship
+     */
+    addShipLights() {
+        // Add a main headlight (spotlight) pointing forward (right for side-scroller)
+        const headlight = new THREE.SpotLight(0xffffff, 5.0, 150, Math.PI / 6, 0.5, 1); // Increased intensity and range
+        headlight.position.set(2, 0.5, 0); // Position at the front of the ship (right side)
+        headlight.target.position.set(10, 0, 0); // Point right
+        this.shipGroup.add(headlight);
+        this.shipGroup.add(headlight.target);
+        
+        // Add a warm glow from the engines
+        const engineLight = new THREE.PointLight(0xff6a00, 4.0, 40); // Increased intensity and range
+        engineLight.position.set(-2, 0, 0); // Position at the back of the ship (left side)
+        this.shipGroup.add(engineLight);
+        
+        // Add bright ambient light around the ship
+        const ambientLight = new THREE.PointLight(0x6666ff, 3.0, 30); // Increased intensity and range
+        ambientLight.position.set(0, 0, 0); // Center of the ship
+        this.shipGroup.add(ambientLight);
+        
+        // Add a second light for better visibility
+        const topLight = new THREE.PointLight(0xffffff, 2.5, 25); // New light
+        topLight.position.set(0, 2, 0); // Above the ship
+        this.shipGroup.add(topLight);
+        
+        // Store lights for later reference
+        this.shipLights = {
+            headlight,
+            engineLight,
+            ambientLight,
+            topLight
+        };
+    }
+    
+    /**
+     * Load the missile model
      */
     loadMissileModel() {
-        // Try to get a missile model from the showcase first
-        if (window.game && window.game.modelShowcase) {
-            const missileModel = window.game.modelShowcase.getMissileModel();
-            if (missileModel) {
-                debugHelper.log("Using missile model from showcase");
-                this.missileTemplate = missileModel;
-                return;
-            }
-        }
+        console.log("Creating missile model...");
         
-        // If no model from showcase, load directly
-        this.modelLoader.loadModel(
-            'models/spaceships/spaceship_missile_0304125431.glb',
-            (model) => {
-                debugHelper.log("Missile model loaded successfully");
-                this.missileTemplate = model;
-            },
-            (error) => {
-                debugHelper.log("Failed to load missile model: " + error.message, "error");
-                // Do not create a default missile, just log the error
-            }
-        );
+        // Skip loading the GLB file and just use our highly visible default missile
+        this.createDefaultMissileModel();
+        
+        console.log("Using default missile model for maximum visibility");
     }
     
+    /**
+     * Create a simple default missile model as fallback
+     */
+    createDefaultMissileModel() {
+        console.log("Creating 100% guaranteed visible missile model");
+        
+        // Create a fresh group for the missile
+        const missileGroup = new THREE.Group();
+        
+        // Create a SIMPLE missile body using MeshBasicMaterial - always visible regardless of lighting
+        const bodyGeometry = new THREE.CylinderGeometry(0.5, 0.5, 4.0, 8);
+        const bodyMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xff0000, // Bright red
+        });
+        
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        body.rotation.z = Math.PI / 2; // Rotate to point along X axis
+        missileGroup.add(body);
+        
+        // Add a nose cone
+        const noseGeometry = new THREE.ConeGeometry(0.5, 1.5, 8);
+        const noseMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xffff00 // Bright yellow
+        });
+        
+        const nose = new THREE.Mesh(noseGeometry, noseMaterial);
+        nose.position.set(2.5, 0, 0); // Position at the front
+        nose.rotation.z = -Math.PI / 2; // Orient correctly
+        missileGroup.add(nose);
+        
+        // Add visible fins
+        const finGeometry = new THREE.BoxGeometry(1.0, 0.1, 1.0);
+        const finMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xffffff // White
+        });
+        
+        // Add four fins for better visibility from all angles
+        const positions = [
+            [0, 0, 0.5],  // Top
+            [0, 0, -0.5], // Bottom
+            [0, 0.5, 0],  // Right
+            [0, -0.5, 0]  // Left
+        ];
+        
+        for (const [x, y, z] of positions) {
+            const fin = new THREE.Mesh(finGeometry, finMaterial);
+            fin.position.set(-1.0, y, z);
+            missileGroup.add(fin);
+        }
+        
+        // Set the missile model to this simplified group
+        this.missileModel = missileGroup;
+        
+        console.log("Created simple, guaranteed visible missile model");
+        return missileGroup;
+    }
+    
+    /**
+     * Set up input event listeners
+     */
     setupInputListeners() {
-        // Keyboard controls
-        document.addEventListener('keydown', (event) => this.handleKeyDown(event.code));
-        document.addEventListener('keyup', (event) => this.handleKeyUp(event.code));
+        // Store references to bound methods to be able to remove them later
+        this.boundKeyDown = this.handleKeyDown.bind(this);
+        this.boundKeyUp = this.handleKeyUp.bind(this);
+        this.boundMouseMove = this.handleMouseMove.bind(this);
         
-        // Mouse controls for rotation with improved sensitivity handling
-        document.addEventListener('mousemove', (event) => {
-            if (document.pointerLockElement) {
-                const sensitivity = this.mouseSensitivity;
-                this.handleMouseMove(event.movementX * sensitivity, event.movementY * sensitivity);
-            }
-        });
+        // Add event listeners
+        document.addEventListener('keydown', this.boundKeyDown);
+        document.addEventListener('keyup', this.boundKeyUp);
+        document.addEventListener('mousemove', this.boundMouseMove);
         
-        // Handle view mode toggle
-        document.addEventListener('keydown', (event) => {
-            if (event.code === 'KeyV') {
-                this.toggleViewMode();
-            }
-        });
+        // Initialize input state
+        this.inputControls = {
+            up: false,
+            down: false,
+            left: false,
+            right: false,
+            shoot: false
+        };
         
-        // Set up pointer lock for mouse control
-        const gameContainer = document.getElementById('game-container');
-        if (gameContainer) {
-            gameContainer.addEventListener('click', () => {
-                if (!document.pointerLockElement) {
-                    gameContainer.requestPointerLock();
-                }
-            });
-            
-            // Show/hide the existing controls display based on pointer lock
-            document.addEventListener('pointerlockchange', () => {
-                const controlsDisplay = document.getElementById('controls-display');
-                if (controlsDisplay) {
-                    if (document.pointerLockElement) {
-                        controlsDisplay.style.display = 'none';
-                    } else {
-                        controlsDisplay.style.display = 'block';
-                    }
-                }
-            });
-        }
+        // Make sure keys object is synchronized with inputControls
+        this.keys = this.inputControls;
         
-        // Remove any existing instructions element we might have added previously
-        const oldInstructions = document.getElementById('instructions');
-        if (oldInstructions) {
-            oldInstructions.remove();
-        }
+        console.log("Input listeners set up successfully");
     }
     
+    /**
+     * Handle mouse movement
+     * @param {number} movementX - Mouse X movement
+     * @param {number} movementY - Mouse Y movement
+     */
     handleMouseMove(movementX, movementY) {
-        // Yaw (left/right) rotation - X movement maps to Y axis rotation
-        this.rotation.y -= movementX;
-        
-        // Pitch (up/down) rotation - Y movement maps to X axis rotation
-        // Apply Y-axis inversion if set
-        const pitchFactor = this.invertYAxis ? 1 : -1;
-        this.rotation.x += movementY * pitchFactor;
-        
-        // Clamp the pitch to prevent flipping over (with more range allowed)
-        this.rotation.x = Math.max(-Math.PI * 0.75, Math.min(Math.PI * 0.75, this.rotation.x));
+        // Not used in side-scroller mode
     }
     
-    handleKeyDown(code) {
+    /**
+     * Handle key down events
+     * @param {KeyboardEvent} event - The keyboard event
+     */
+    handleKeyDown(event) {
+        // Prevent default behavior for game controls to avoid browser scrolling
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyS', 'KeyA', 'KeyD', 'Space'].includes(event.code)) {
+            event.preventDefault();
+        }
+        
+        const code = event.code;
+        
         switch (code) {
-            // Side-scroller controls: WASD for movement
-            case 'KeyW': 
-                this.inputControls.up = true; 
+            case 'ArrowUp':
+            case 'KeyW':
+                this.inputControls.up = true;
                 this.keys.up = true;
                 break;
-            case 'KeyS': 
-                this.inputControls.down = true; 
+            case 'ArrowDown':
+            case 'KeyS':
+                this.inputControls.down = true;
                 this.keys.down = true;
                 break;
-            case 'KeyA': 
-                this.inputControls.left = true; 
+            case 'ArrowLeft':
+            case 'KeyA':
+                this.inputControls.left = true;
                 this.keys.left = true;
                 break;
-            case 'KeyD': 
-                this.inputControls.right = true; 
+            case 'ArrowRight':
+            case 'KeyD':
+                this.inputControls.right = true;
                 this.keys.right = true;
                 break;
-            
-            // Space to shoot missiles
-            case 'Space': 
+            case 'Space':
                 this.inputControls.shoot = true;
                 this.keys.shoot = true;
-                this.shootMissile();
-                break;
                 
-            // Escape to pause
-            case 'Escape':
-                // Implement pause functionality if needed
+                // For immediate response, try to shoot right away if cooldown is ready
+                if (this.missileCooldown <= 0) {
+                    this.shootMissile();
+                    this.missileCooldown = this.missileCooldownTime;
+                }
                 break;
         }
     }
     
-    handleKeyUp(code) {
+    /**
+     * Handle key up events
+     * @param {KeyboardEvent} event - The keyboard event
+     */
+    handleKeyUp(event) {
+        // Prevent default behavior for game controls
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyS', 'KeyA', 'KeyD', 'Space'].includes(event.code)) {
+            event.preventDefault();
+        }
+        
+        const code = event.code;
+        
         switch (code) {
-            // Side-scroller controls: WASD for movement
-            case 'KeyW': 
-                this.inputControls.up = false; 
+            case 'ArrowUp':
+            case 'KeyW':
+                this.inputControls.up = false;
                 this.keys.up = false;
                 break;
-            case 'KeyS': 
-                this.inputControls.down = false; 
+            case 'ArrowDown':
+            case 'KeyS':
+                this.inputControls.down = false;
                 this.keys.down = false;
                 break;
-            case 'KeyA': 
-                this.inputControls.left = false; 
+            case 'ArrowLeft':
+            case 'KeyA':
+                this.inputControls.left = false;
                 this.keys.left = false;
                 break;
-            case 'KeyD': 
-                this.inputControls.right = false; 
+            case 'ArrowRight':
+            case 'KeyD':
+                this.inputControls.right = false;
                 this.keys.right = false;
                 break;
-            
-            // Space to shoot missiles
-            case 'Space': 
+            case 'Space':
                 this.inputControls.shoot = false;
                 this.keys.shoot = false;
+                break;
+            case 'KeyV':
+                this.toggleViewMode();
                 break;
         }
     }
@@ -392,67 +482,98 @@ export class Player {
         this.viewMode = this.viewMode === 'thirdPerson' ? 'firstPerson' : 'thirdPerson';
     }
     
+    /**
+     * Update player state
+     * @param {number} delta - Time step in seconds
+     */
     update(delta) {
-        // Adaptive delta clamping to prevent physics issues on lag spikes
-        const clampedDelta = Math.min(delta, 0.1);
+        // Process input first for maximum responsiveness
         
-        this.updateMovement(clampedDelta);
-        this.updateEngineEffects();
-        this.updateCameraPosition();
-        
-        // Only check collisions if boundingBox is defined
-        if (this.boundingBox) {
-            this.checkCollisions();
+        // Auto-fire if enabled, or handle manual shooting
+        if (this.autoFire || this.inputControls.shoot) {
+            if (this.missileCooldown <= 0) {
+                this.shootMissile();
+                this.missileCooldown = this.missileCooldownTime;
+            }
         }
+        
+        // Update missile cooldown
+        if (this.missileCooldown > 0) {
+            this.missileCooldown -= delta;
+        }
+        
+        // Update movement
+        this.updateMovement(delta);
+        
+        // Update engine effects based on movement
+        this.updateEngineEffects();
         
         // Update missiles
-        this.updateMissiles(clampedDelta);
+        this.updateMissiles(delta);
         
         // Update explosions
-        this.updateExplosions(clampedDelta);
+        this.updateExplosions(delta);
         
-        // Reduce missile cooldown
-        if (this.missileCooldown > 0) {
-            this.missileCooldown -= clampedDelta;
+        // Update camera position
+        this.updateCameraPosition();
+        
+        // Check for collisions
+        this.checkCollisions();
+        
+        // Update collision cooldown
+        if (this.collisionCooldown > 0) {
+            this.collisionCooldown -= delta;
         }
         
-        // Reduce collision cooldown if active
-        if (this.collisionCooldown > 0) {
-            this.collisionCooldown -= clampedDelta;
+        // Recharge energy
+        if (this.energy < 100) {
+            this.energy += this.energyRechargeRate * delta;
+            if (this.energy > 100) this.energy = 100;
         }
     }
     
     updateMovement(delta) {
-        // Side-scroller movement
-        const moveSpeed = this.moveSpeed * delta;
+        // Always apply a small forward velocity for classic side-scroller feel
+        this.velocity.set(0, 0, 0);
         
-        // Apply movement based on input
-        if (this.keys.up) {
-            this.position.y += moveSpeed;
+        // In Gradius-style games, UP/DOWN are the primary controls
+        if (this.inputControls.up) {
+            this.velocity.y = this.verticalSpeed;
         }
-        if (this.keys.down) {
-            this.position.y -= moveSpeed;
-        }
-        if (this.keys.left) {
-            this.position.x -= moveSpeed;
-        }
-        if (this.keys.right) {
-            this.position.x += moveSpeed;
+        if (this.inputControls.down) {
+            this.velocity.y = -this.verticalSpeed;
         }
         
-        // Update ship position
+        // LEFT/RIGHT adjust horizontal speed but don't fully control it
+        // LEFT slows down slightly, RIGHT speeds up slightly
+        let horizontalSpeed = 0;
+        
+        if (this.inputControls.right) {
+            horizontalSpeed = this.horizontalAdjustSpeed;
+        } else if (this.inputControls.left) {
+            horizontalSpeed = -this.horizontalAdjustSpeed * 0.5; // Slower backward movement
+        }
+        
+        this.velocity.x = horizontalSpeed;
+        
+        // Update position with delta time
+        const fixedDelta = Math.min(delta, 0.016); // Cap at 60fps equivalent
+        this.position.add(this.velocity.clone().multiplyScalar(fixedDelta));
+        
+        // Apply position boundaries for screen limits
+        if (this.position.y < this.minY) this.position.y = this.minY;
+        if (this.position.y > this.maxY) this.position.y = this.maxY;
+        if (this.position.x < this.minX) this.position.x = this.minX;
+        if (this.position.x > this.maxX) this.position.x = this.maxX;
+        
+        // Update ship model position if available
         if (this.shipGroup) {
             this.shipGroup.position.copy(this.position);
         }
         
-        // Update model position if no ship group
-        if (!this.shipGroup && this.model) {
-            this.model.position.copy(this.position);
-        }
-        
         // Update bounding box
-        if (this.boundingBox && this.model) {
-            this.boundingBox.setFromObject(this.model);
+        if (this.boundingBox) {
+            this.boundingBox.setFromObject(this.shipGroup);
         }
     }
     
@@ -460,125 +581,122 @@ export class Player {
      * Sets up engine visual and audio effects
      */
     setupEngineEffects() {
-        // Create engine glow material
+        // Create engine glow material - use orange/red for classic Gradius style
         const engineMaterial = new THREE.MeshBasicMaterial({
-            color: 0x00ffff,
-            emissive: 0x00ffff,
+            color: 0xff6600,
+            emissive: 0xff3300,
             emissiveIntensity: 2,
             transparent: true,
             opacity: 0.7
         });
         
         // Create engine glow mesh
-        const engineGeometry = new THREE.ConeGeometry(0.5, 1.5, 8);
-        engineGeometry.rotateX(Math.PI); // Rotate to point backward
+        const engineGeometry = new THREE.ConeGeometry(0.5, 2.0, 8);
+        // For Gradius style, engine exhaust points left (negative X axis)
         this.engineGlow = new THREE.Mesh(engineGeometry, engineMaterial);
         
-        // Position at the back of the ship
-        this.engineGlow.position.set(0, 0, 2);
+        // Position at the back of the ship for Gradius-style orientation
+        // The ship is now rotated to face right, so the back is along the negative X axis
+        this.engineGlow.position.set(-3, 0, 0);
+        this.engineGlow.rotation.z = -Math.PI / 2; // Point engine exhaust left
         
         // Add engine glow to ship model
         this.model.add(this.engineGlow);
         
         // Create engine light
-        this.engineLight = new THREE.PointLight(0x00ffff, 2, 10);
+        this.engineLight = new THREE.PointLight(0xff6600, 4, 15);
         this.engineLight.position.copy(this.engineGlow.position);
         this.model.add(this.engineLight);
+        
+        // Add a second, smaller engine glow
+        const secondaryGlow = new THREE.Mesh(
+            new THREE.ConeGeometry(0.3, 1.2, 8),
+            engineMaterial.clone()
+        );
+        secondaryGlow.position.set(-3, 0.8, 0); // Slightly offset from main engine
+        secondaryGlow.rotation.z = -Math.PI / 2; // Point engine exhaust left
+        this.model.add(secondaryGlow);
+        this.secondaryGlow = secondaryGlow;
+        
+        // Create a small flickering light for the secondary engine
+        const secondaryLight = new THREE.PointLight(0xff3300, 2, 10);
+        secondaryLight.position.copy(secondaryGlow.position);
+        this.model.add(secondaryLight);
+        this.secondaryLight = secondaryLight;
         
         // Attach engine sound to the ship if available
         if (this.soundsLoaded && this.engineSound) {
             this.model.add(this.engineSound);
         }
         
-        // Initial visibility state (off until activated)
-        this.engineGlow.visible = false;
-        this.engineLight.visible = false;
+        // Initial visibility - always visible for Gradius style
+        this.engineGlow.visible = true;
+        this.engineLight.visible = true;
+        this.secondaryGlow.visible = true;
+        this.secondaryLight.visible = true;
     }
     
     /**
      * Updates engine visual and audio effects based on player input
      */
     updateEngineEffects() {
-        // Default engine state
-        let engineActive = this.keys.forward;
-        let thrustLevel = 1.0;
+        // For Gradius style, engines are always on, but vary in intensity
+        // Initialize time counter if not already set
+        if (!this.engineTime) {
+            this.engineTime = 0;
+        }
         
-        // Special effects for boost and afterburner
-        if (engineActive) {
-            if (this.keys.afterburner) {
-                thrustLevel = 3.0; // Intense glow
-                
-                // Create afterburner effect with larger engine and particle emission
-                this.engineGlow.scale.set(1.8, 1.8, 2.5);
-                this.engineLight.intensity = thrustLevel * 3;
-                this.engineLight.distance = 15;
-                
-                // Adjust engine colors for afterburner
-                this.engineGlow.material.emissive.setHex(0x00ffff);
-                this.engineLight.color.setHex(0x33ffff);
-                
-                // Adjust engine sound for afterburner
-                if (this.soundsLoaded && this.engineSound) {
-                    this.engineSound.setVolume(0.8);
-                    this.engineSound.playbackRate = 1.5;
-                }
-                
-            } else if (this.keys.boost) {
-                thrustLevel = 1.8; // Stronger glow than normal
-                this.engineGlow.scale.set(1.4, 1.4, 1.8);
-                this.engineLight.intensity = thrustLevel * 2;
-                this.engineLight.distance = 12;
-                
-                // Normal boost colors
-                this.engineGlow.material.emissive.setHex(0x00ffff);
-                this.engineLight.color.setHex(0x00ffff);
-                
-                // Adjust engine sound for boost
-                if (this.soundsLoaded && this.engineSound) {
-                    this.engineSound.setVolume(0.6);
-                    this.engineSound.playbackRate = 1.2;
-                }
-                
-            } else {
-                // Normal engine
-                this.engineGlow.scale.set(1, 1, 1);
-                this.engineLight.intensity = thrustLevel * 2;
-                this.engineLight.distance = 10;
-                
-                // Normal engine colors
-                this.engineGlow.material.emissive.setHex(0x00ffff);
-                this.engineLight.color.setHex(0x00ffff);
-                
-                // Normal engine sound
-                if (this.soundsLoaded && this.engineSound) {
-                    this.engineSound.setVolume(0.5);
-                    this.engineSound.playbackRate = 1.0;
-                }
-            }
-            
-            // Start engine sound if not already playing
-            if (this.soundsLoaded && this.engineSound && !this.engineSound.isPlaying) {
+        // Update time counter
+        this.engineTime += 0.05;
+        
+        // Create a pulsing effect for the engines
+        const basePulse = Math.sin(this.engineTime * 10) * 0.2 + 0.8; // Oscillate between 0.6 and 1.0
+        
+        // Apply random flicker
+        const flicker = Math.random() * 0.2 + 0.9; // Random value between 0.9 and 1.1
+        const totalFactor = basePulse * flicker;
+        
+        // Apply to the main engine
+        if (this.engineGlow) {
+            this.engineGlow.material.opacity = 0.7 * totalFactor;
+            this.engineGlow.scale.set(1, 1 * totalFactor, 1);
+        }
+        
+        if (this.engineLight) {
+            this.engineLight.intensity = 4 * totalFactor;
+        }
+        
+        // Apply slightly different effect to secondary engine
+        const secondaryFactor = Math.sin(this.engineTime * 12 + 1) * 0.3 + 0.7; // Different phase and amplitude
+        
+        if (this.secondaryGlow) {
+            this.secondaryGlow.material.opacity = 0.6 * secondaryFactor;
+            this.secondaryGlow.scale.set(1, 1 * secondaryFactor, 1);
+        }
+        
+        if (this.secondaryLight) {
+            this.secondaryLight.intensity = 2 * secondaryFactor;
+        }
+        
+        // Update engine sound if available
+        if (this.soundsLoaded && this.engineSound) {
+            // Always on for Gradius style but varying in volume
+            if (!this.engineSound.isPlaying) {
                 this.engineSound.play();
             }
-        } else {
-            // Stop engine sound when not active
-            if (this.soundsLoaded && this.engineSound && this.engineSound.isPlaying) {
-                this.engineSound.stop();
-            }
-        }
-        
-        // Show/hide engine effects
-        if (this.engineGlow) {
-            this.engineGlow.visible = engineActive;
-        }
-        if (this.engineLight) {
-            this.engineLight.visible = engineActive;
+            this.engineSound.setVolume(0.5 * totalFactor);
         }
     }
     
     updateCameraPosition() {
-        // For side-scroller, camera stays fixed
-        // No need to update camera position
+        // For Gradius-style side-scrolling, position the camera to show more of what's ahead
+        // Position the camera so the player is about 1/3 from the left edge of the screen
+        
+        const lookAheadOffset = 20; // How far ahead to look
+        
+        // Set the camera position
+        this.camera.position.set(this.position.x + lookAheadOffset, this.position.y, 100);
+        this.camera.lookAt(this.position.x + lookAheadOffset, this.position.y, 0);
     }
     
     checkCollisions() {
@@ -610,9 +728,18 @@ export class Player {
     }
     
     handleCollision(object) {
-        // Get object properties
-        const debrisType = object.userData.debrisType || 'asteroid';
-        const debrisMass = object.userData.mass || 5.0;
+        // Safety check - if object is null or undefined, return
+        if (!object) {
+            console.warn("Player.handleCollision called with null or undefined object");
+            return;
+        }
+        
+        // Ensure userData exists
+        const userData = object.userData || {};
+        
+        // Get object properties with safe defaults
+        const debrisType = userData.debrisType || 'asteroid';
+        const debrisMass = userData.mass || (object.mass || 5.0);
         
         // Calculate impact based on relative velocity and mass
         const relativeVelocity = this.velocity.length();
@@ -649,38 +776,28 @@ export class Player {
     }
     
     /**
-     * Shoots a missile from the player's ship
+     * Shoot a missile
      */
     shootMissile() {
-        // Check if we can shoot (cooldown and energy)
-        if (this.missileCooldown > 0 || this.energy < 10) {
-            return;
-        }
-        
-        // Check if we have a missile template
-        if (!this.missileTemplate) {
-            debugHelper.log("No missile template available", "warning");
-            return;
-        }
+        console.log("Attempting to fire missile");
         
         try {
-            // Clone the missile template
-            const missileModel = this.missileTemplate.clone();
+            // Use our default missile model
+            const missileModel = this.createDefaultMissileModel();
+            
+            // Add trail and lights before setting up the missile
+            this.createMissileTrail(missileModel);
+            this.addMissileLight(missileModel);
             
             // Set up the missile for side-scrolling
             this.setupSideScrollerMissile(missileModel);
             
-            // Set cooldown
-            this.missileCooldown = this.missileCooldownTime;
-            
-            // Use energy
-            this.energy -= 10;
-            
-            // Play sound
+            // Play missile sound
             this.playMissileSound();
             
+            console.log("Missile fired successfully");
         } catch (error) {
-            debugHelper.log("Error creating missile: " + error.message, "error");
+            console.error("Error shooting missile:", error);
         }
     }
     
@@ -689,84 +806,49 @@ export class Player {
      * @param {THREE.Object3D} model - The missile model
      */
     setupSideScrollerMissile(model) {
-        // Scale missile
-        model.scale.set(0.8, 0.8, 0.8);
+        console.log("Setting up reliable missile with backup sphere");
         
-        // Position missile at the right side of the ship
-        const missilePosition = this.position.clone();
-        missilePosition.x += 3; // Position to the right of the ship
+        // 1. Main missile setup
+        // ----------------------
+        // Scale the missile up for visibility
+        model.scale.set(5.0, 5.0, 5.0);
         
+        // Position the missile at the front of the ship
+        const missilePosition = new THREE.Vector3().copy(this.position);
+        missilePosition.x += 20; // Position in front of the ship
         model.position.copy(missilePosition);
-        model.rotation.set(0, Math.PI / 2, 0); // Rotate to point right
         
         // Add to scene
         this.scene.add(model);
         
-        // Create missile data object
-        const missile = {
+        // 2. Create backup visible object
+        // ------------------------------
+        // Create a red sphere that will be visible even if missile isn't
+        const backupSphere = new THREE.Mesh(
+            new THREE.SphereGeometry(3.0, 16, 16),
+            new THREE.MeshBasicMaterial({ color: 0xff0000 })
+        );
+        backupSphere.position.copy(missilePosition);
+        this.scene.add(backupSphere);
+        
+        // 3. Set missile properties
+        // ------------------------
+        const missileVelocity = new THREE.Vector3(200, 0, 0); // Horizontal movement
+        
+        // Add to missiles array for tracking
+        this.missiles.push({
             model: model,
-            position: missilePosition,
-            velocity: new THREE.Vector3(50, 0, 0), // Move right in side-scroller
-            timeAlive: 0,
-            maxLifetime: 3 // 3 seconds max lifetime
-        };
+            backupObject: backupSphere,
+            velocity: missileVelocity,
+            lifeTime: 0,
+            maxLifeTime: 5 // 5 seconds before disappearing
+        });
         
-        // Add to missiles array
-        this.missiles.push(missile);
+        // Debug log
+        console.log("Missile deployed at position:", missilePosition);
         
-        // Add a point light to the missile for visual effect
-        const missileLight = new THREE.PointLight(0xff3300, 1, 10);
-        model.add(missileLight);
-        
-        // Add particle trail effect
-        this.createMissileTrail(model);
-    }
-    
-    /**
-     * Creates a particle trail for a missile
-     * @param {THREE.Object3D} missileModel - The missile model to add a trail to
-     */
-    createMissileTrail(missileModel) {
-        try {
-            // Number of particles in the trail
-            const trailMaxParticles = 20;
-            
-            // Create geometry for the trail
-            const geometry = new THREE.BufferGeometry();
-            const positions = new Float32Array(trailMaxParticles * 3);
-            
-            // Initialize all positions to the missile's current position
-            const pos = missileModel.position.clone();
-            for (let i = 0; i < trailMaxParticles; i++) {
-                positions[i * 3] = pos.x;
-                positions[i * 3 + 1] = pos.y;
-                positions[i * 3 + 2] = pos.z;
-            }
-            
-            // Set the positions attribute
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            
-            // Create material for the trail
-            const material = new THREE.PointsMaterial({
-                color: 0xff4500,
-                size: 0.5,
-                transparent: true,
-                opacity: 0.8,
-                blending: THREE.AdditiveBlending
-            });
-            
-            // Create the particle system
-            const trailSystem = new THREE.Points(geometry, material);
-            this.scene.add(trailSystem);
-            
-            // Store trail data on the missile model for updates
-            missileModel.trailSystem = trailSystem;
-            missileModel.trailPositions = positions;
-            missileModel.trailMaxParticles = trailMaxParticles;
-            missileModel.trailIndex = 0;
-        } catch (error) {
-            debugHelper.log("Error creating missile trail: " + error.message, "error");
-        }
+        // Play sound effect
+        this.playMissileSound();
     }
     
     /**
@@ -790,154 +872,273 @@ export class Player {
      * @param {number} delta - Time step in seconds
      */
     updateMissiles(delta) {
-        // Update each missile
+        // Process each missile
         for (let i = this.missiles.length - 1; i >= 0; i--) {
             const missile = this.missiles[i];
             
-            // Skip invalid missiles
-            if (!missile || !missile.model) {
-                this.missiles.splice(i, 1);
-                continue;
+            // Update missile position based on velocity
+            missile.model.position.x += missile.velocity.x * delta;
+            missile.model.position.y += missile.velocity.y * delta;
+            missile.model.position.z += missile.velocity.z * delta;
+            
+            // Update the backup sphere position to match the missile
+            if (missile.backupObject) {
+                missile.backupObject.position.copy(missile.model.position);
             }
             
-            // Update position based on velocity
-            missile.position.add(missile.velocity.clone().multiplyScalar(delta));
-            missile.model.position.copy(missile.position);
-            
-            // Update missile trail
-            if (missile.model.trailSystem) {
-                this.updateMissileTrailEffect(missile.model, delta);
+            // Update trail particles if the missile has a trail
+            if (missile.model.userData.trail) {
+                // Update each particle in the trail
+                const particles = missile.model.userData.trail.geometry.getAttribute('position');
+                const colors = missile.model.userData.trail.geometry.getAttribute('color');
+                
+                // Shift particles back (older positions)
+                for (let j = particles.count - 1; j > 0; j--) {
+                    // Copy position and color from previous particle
+                    particles.setXYZ(j, 
+                        particles.getX(j-1),
+                        particles.getY(j-1),
+                        particles.getZ(j-1)
+                    );
+                    
+                    // Fade out the particles
+                    const alpha = j / particles.count;
+                    colors.setXYZ(j, 1.0, 0.3 * alpha, 0.1 * alpha);
+                }
+                
+                // Set the first particle to the missile's current position
+                particles.setXYZ(0, 
+                    missile.model.position.x,
+                    missile.model.position.y,
+                    missile.model.position.z
+                );
+                colors.setXYZ(0, 1.0, 0.6, 0.2); // Bright color for newest particle
+                
+                // Mark attributes for update
+                particles.needsUpdate = true;
+                colors.needsUpdate = true;
             }
             
-            // Check for collisions
-            this.checkMissileCollisions(missile);
+            // Update light pulse effect
+            if (missile.model.userData.pulseLight) {
+                const pulseLight = missile.model.userData.pulseLight;
+                const time = performance.now() * 0.003;
+                const pulseIntensity = 2.0 + Math.sin(time * 10) * 1.0;
+                pulseLight.light.intensity = pulseIntensity;
+                
+                if (pulseLight.secondLight) {
+                    pulseLight.secondLight.intensity = 1.0 + Math.cos(time * 10) * 0.5;
+                }
+            }
             
-            // Update lifetime
-            missile.timeAlive += delta;
+            // Update missile lifetime
+            missile.lifeTime += delta;
             
-            // Remove missile if it's lived too long
-            if (missile.timeAlive > missile.maxLifetime) {
+            // Remove missile if it's gone too far or lived too long
+            if (missile.lifeTime > missile.maxLifeTime || 
+                missile.model.position.x > 1000 || 
+                missile.model.position.x < -1000) {
+                
                 // Remove from scene
                 this.scene.remove(missile.model);
+                if (missile.backupObject) {
+                    this.scene.remove(missile.backupObject);
+                }
+                if (missile.model.userData.trail) {
+                    this.scene.remove(missile.model.userData.trail.points);
+                }
                 
                 // Remove from array
                 this.missiles.splice(i, 1);
+                console.log("Missile removed, remaining:", this.missiles.length);
             }
         }
     }
     
     /**
-     * Updates the particle trail effect for a missile
-     * @param {THREE.Object3D} missileModel - The missile model with the trail
+     * Creates a particle trail for a missile
+     * @param {THREE.Object3D} missileModel - The missile model to add a trail to
+     */
+    createMissileTrail(missileModel) {
+        console.log("Creating missile trail");
+        try {
+            // Create trail particle system
+            const particleCount = 40;
+            const particles = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+            
+            // Initialize all particles at the missile position
+            for (let i = 0; i < particleCount; i++) {
+                particles[i * 3] = missileModel.position.x;
+                particles[i * 3 + 1] = missileModel.position.y;
+                particles[i * 3 + 2] = missileModel.position.z;
+                
+                // Set gradient colors - bright at front, fade to transparent
+                const alpha = 1.0 - (i / particleCount);
+                colors[i * 3] = 1.0;         // Red
+                colors[i * 3 + 1] = 0.5 * alpha;  // Green - decreases with alpha
+                colors[i * 3 + 2] = 0.2 * alpha;  // Blue - decreases with alpha
+            }
+            
+            // Create trail geometry
+            const trailGeometry = new THREE.BufferGeometry();
+            trailGeometry.setAttribute('position', new THREE.BufferAttribute(particles, 3));
+            trailGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            
+            // Create trail material
+            const trailMaterial = new THREE.PointsMaterial({
+                size: 1.0,
+                vertexColors: true,
+                blending: THREE.AdditiveBlending,
+                transparent: true,
+                depthWrite: false
+            });
+            
+            // Create points object
+            const trailPoints = new THREE.Points(trailGeometry, trailMaterial);
+            this.scene.add(trailPoints);
+            
+            // Store trail reference on the missile for updates
+            missileModel.userData.trail = {
+                points: trailPoints,
+                geometry: trailGeometry,
+                material: trailMaterial
+            };
+            
+            console.log("Missile trail created successfully");
+        } catch (error) {
+            console.error("Error creating missile trail:", error);
+        }
+    }
+    
+    /**
+     * Add a light to the missile
+     */
+    addMissileLight(missileModel) {
+        console.log("Adding lights to missile");
+        try {
+            // Add a bright primary light (red)
+            const mainLight = new THREE.PointLight(0xff0000, 3.0, 10);
+            mainLight.position.set(0, 0, 0); // Centered on missile
+            missileModel.add(mainLight);
+            
+            // Add a secondary light (yellow)
+            const secondaryLight = new THREE.PointLight(0xffaa00, 1.5, 8);
+            secondaryLight.position.set(-1, 0, 0); // Slightly behind
+            missileModel.add(secondaryLight);
+            
+            // Store lights for pulsing effect
+            missileModel.userData.pulseLight = {
+                light: mainLight,
+                secondLight: secondaryLight
+            };
+            
+            console.log("Missile lights added successfully");
+        } catch (error) {
+            console.error("Error adding missile lights:", error);
+        }
+    }
+    
+    /**
+     * Set up the side-scroller camera
+     */
+    setupSideScrollCamera() {
+        // Position the camera for a Gradius-style side view
+        // Initial position - will be updated in updateCameraPosition
+        this.camera.position.set(-20, 0, 100);
+        this.camera.lookAt(0, 0, 0);
+        
+        // Make sure the camera is orthographic for true 2D feel
+        if (this.camera instanceof THREE.PerspectiveCamera) {
+            // Store the original camera to restore if needed
+            this.perspectiveCamera = this.camera.clone();
+            
+            // Create an orthographic camera with similar frustum
+            const aspect = window.innerWidth / window.innerHeight;
+            const frustumSize = 100;
+            const newCamera = new THREE.OrthographicCamera(
+                frustumSize * aspect / -2,
+                frustumSize * aspect / 2,
+                frustumSize / 2,
+                frustumSize / -2,
+                0.1,
+                1000
+            );
+            
+            // Position the orthographic camera for Gradius-style view
+            newCamera.position.set(-20, 0, 100);
+            newCamera.lookAt(0, 0, 0);
+            
+            // Replace the perspective camera with orthographic
+            Object.assign(this.camera, newCamera);
+        }
+        
+        console.log("Side-scroller camera set up");
+    }
+    
+    /**
+     * Updates all active explosions
      * @param {number} delta - Time step in seconds
      */
-    updateMissileTrailEffect(missileModel, delta) {
-        try {
-            if (!missileModel.trailSystem || !missileModel.trailPositions) {
-                return;
-            }
-            
-            // Get current missile position
-            const pos = missileModel.position;
-            
-            // Update trail index
-            missileModel.trailIndex = (missileModel.trailIndex + 1) % missileModel.trailMaxParticles;
-            
-            // Move all particles back one position
-            for (let i = missileModel.trailMaxParticles - 1; i > 0; i--) {
-                missileModel.trailPositions[i * 3] = missileModel.trailPositions[(i - 1) * 3];
-                missileModel.trailPositions[i * 3 + 1] = missileModel.trailPositions[(i - 1) * 3 + 1];
-                missileModel.trailPositions[i * 3 + 2] = missileModel.trailPositions[(i - 1) * 3 + 2];
-            }
-            
-            // Set first particle to missile position
-            missileModel.trailPositions[0] = pos.x;
-            missileModel.trailPositions[1] = pos.y;
-            missileModel.trailPositions[2] = pos.z;
-            
-            // Update the buffer
-            if (missileModel.trailSystem.geometry && 
-                missileModel.trailSystem.geometry.attributes && 
-                missileModel.trailSystem.geometry.attributes.position) {
-                missileModel.trailSystem.geometry.attributes.position.needsUpdate = true;
-            }
-        } catch (error) {
-            debugHelper.log("Error updating missile trail: " + error.message, "error");
+    updateExplosions(delta) {
+        if (!this.explosions || this.explosions.length === 0) {
+            return;
         }
-    }
-    
-    /**
-     * Checks if a missile has collided with any entities
-     * @param {Object} missile - The missile to check
-     */
-    checkMissileCollisions(missile) {
-        try {
-            // Skip if missile or model is invalid
-            if (!missile || !missile.model) {
-                return;
-            }
+        
+        // Process each explosion from end to start to safely remove
+        for (let i = this.explosions.length - 1; i >= 0; i--) {
+            const explosion = this.explosions[i];
             
-            // Create a bounding box for simple collision checks
-            const missileBounds = new THREE.Box3().setFromObject(missile.model);
+            // Update lifetime
+            explosion.lifetime += delta;
             
-            // Check for collisions with asteroids
-            this.scene.traverse((object) => {
-                if (object.userData && (object.userData.isAsteroid || object.userData.isDebris)) {
-                    try {
-                        // Get object's bounding box
-                        const objectBounds = new THREE.Box3().setFromObject(object);
-                        
-                        // Check for intersection
-                        if (missileBounds.intersectsBox(objectBounds)) {
-                            // Handle the hit
-                            this.handleMissileHit(missile, object);
-                        }
-                    } catch (error) {
-                        // Ignore errors from incomplete objects
-                    }
+            // Check if explosion has completed
+            if (explosion.lifetime >= explosion.maxLifetime) {
+                // Remove light
+                if (explosion.light) {
+                    this.scene.remove(explosion.light);
                 }
-            });
-        } catch (error) {
-            debugHelper.log("Error checking missile collisions: " + error.message, "error");
-        }
-    }
-    
-    /**
-     * Handles a missile hitting a target
-     * @param {Object} missile - The missile that hit
-     * @param {Object} target - The object that was hit
-     */
-    handleMissileHit(missile, target) {
-        try {
-            debugHelper.log(`Missile hit object: ${target.userData.type || 'unknown'}`);
-            
-            // Create explosion effect
-            this.createExplosion(missile.position);
-            
-            // Remove missile
-            if (missile.model) {
-                this.scene.remove(missile.model);
-                if (missile.model.trailSystem) {
-                    this.scene.remove(missile.model.trailSystem);
-                }
-            }
-            
-            // Remove missile from array
-            const index = this.missiles.indexOf(missile);
-            if (index !== -1) {
-                this.missiles.splice(index, 1);
-            }
-            
-            // Handle target destruction if it's an asteroid
-            if (target.userData && target.userData.isAsteroid && target.userData.asteroidRef) {
-                // Call the asteroid's handleCollision method
-                target.userData.asteroidRef.handleCollision(this);
                 
-                // Add score
-                this.score += 100;
+                // Remove particles
+                if (explosion.particles) {
+                    this.scene.remove(explosion.particles);
+                }
+                
+                // Remove from array
+                this.explosions.splice(i, 1);
+                continue;
             }
-        } catch (error) {
-            debugHelper.log("Error handling missile hit: " + error.message, "error");
+            
+            // Calculate fade factor (1 at start, 0 at end)
+            const fadeFactor = 1 - (explosion.lifetime / explosion.maxLifetime);
+            
+            // Update light intensity
+            if (explosion.light) {
+                explosion.light.intensity = 5 * fadeFactor;
+            }
+            
+            // Update particles
+            if (explosion.particles) {
+                const positions = explosion.particles.geometry.attributes.position.array;
+                const velocities = explosion.particles.userData.velocities;
+                
+                // Update particle positions
+                for (let j = 0; j < velocities.length; j++) {
+                    // Apply velocity
+                    positions[j * 3] += velocities[j].x * delta;
+                    positions[j * 3 + 1] += velocities[j].y * delta;
+                    positions[j * 3 + 2] += velocities[j].z * delta;
+                    
+                    // Slow down velocity (simulate air resistance)
+                    velocities[j].multiplyScalar(0.95);
+                }
+                
+                // Update opacity
+                explosion.particles.material.opacity = fadeFactor;
+                
+                // Update the buffer
+                explosion.particles.geometry.attributes.position.needsUpdate = true;
+            }
         }
     }
     
@@ -997,114 +1198,19 @@ export class Player {
         // Create particle system
         const explosionParticles = new THREE.Points(particles, particleMaterial);
         explosionParticles.userData.velocities = velocities;
-        explosionParticles.userData.lifetime = 0;
-        explosionParticles.userData.maxLifetime = 1; // 1 second
         
         this.scene.add(explosionParticles);
         
-        // Store a reference to animate the explosion
+        // Add to explosions array
         if (!this.explosions) {
             this.explosions = [];
         }
+        
         this.explosions.push({
             light: explosionLight,
             particles: explosionParticles,
             lifetime: 0,
             maxLifetime: 1 // 1 second
         });
-    }
-    
-    /**
-     * Updates all active explosions
-     * @param {number} delta - Time step in seconds
-     */
-    updateExplosions(delta) {
-        if (!this.explosions || this.explosions.length === 0) {
-            return;
-        }
-        
-        // Process each explosion from end to start to safely remove
-        for (let i = this.explosions.length - 1; i >= 0; i--) {
-            const explosion = this.explosions[i];
-            
-            // Update lifetime
-            explosion.lifetime += delta;
-            
-            // Check if explosion has completed
-            if (explosion.lifetime >= explosion.maxLifetime) {
-                // Remove light
-                this.scene.remove(explosion.light);
-                
-                // Remove particles
-                this.scene.remove(explosion.particles);
-                
-                // Remove from array
-                this.explosions.splice(i, 1);
-                continue;
-            }
-            
-            // Calculate fade factor (1 at start, 0 at end)
-            const fadeFactor = 1 - (explosion.lifetime / explosion.maxLifetime);
-            
-            // Update light intensity
-            explosion.light.intensity = 5 * fadeFactor;
-            
-            // Update particles
-            const particles = explosion.particles;
-            const positions = particles.geometry.attributes.position.array;
-            const velocities = particles.userData.velocities;
-            
-            // Update particle positions
-            for (let j = 0; j < velocities.length; j++) {
-                // Apply velocity
-                positions[j * 3] += velocities[j].x * delta;
-                positions[j * 3 + 1] += velocities[j].y * delta;
-                positions[j * 3 + 2] += velocities[j].z * delta;
-                
-                // Slow down velocity (simulate air resistance)
-                velocities[j].multiplyScalar(0.95);
-            }
-            
-            // Update opacity
-            particles.material.opacity = fadeFactor;
-            
-            // Update the buffer
-            particles.geometry.attributes.position.needsUpdate = true;
-        }
-    }
-    
-    /**
-     * Sets up the camera for side-scrolling view
-     */
-    setupSideScrollCamera() {
-        // Position the camera for a side view
-        this.camera.position.set(0, 0, 50);
-        this.camera.lookAt(0, 0, 0);
-        
-        // Make the camera orthographic for true 2D feel
-        // Store the original camera to restore if needed
-        this.perspectiveCamera = this.camera.clone();
-        
-        // Create an orthographic camera with similar frustum
-        const aspect = window.innerWidth / window.innerHeight;
-        const frustumSize = 30;
-        this.camera = new THREE.OrthographicCamera(
-            frustumSize * aspect / -2,
-            frustumSize * aspect / 2,
-            frustumSize / 2,
-            frustumSize / -2,
-            0.1,
-            1000
-        );
-        
-        // Position the orthographic camera
-        this.camera.position.set(0, 0, 50);
-        this.camera.lookAt(0, 0, 0);
-        this.scene.add(this.camera);
-        
-        // Rotate the ship to face the camera
-        if (this.model) {
-            this.model.rotation.set(0, Math.PI, 0);
-        }
     }
 } 

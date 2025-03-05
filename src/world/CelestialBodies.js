@@ -62,57 +62,19 @@ export class CelestialBodies {
     }
     
     createDistantPlanets() {
-        // Create several distant planets at fixed positions
-        const planets = [
-            {
-                type: 'earth',
-                position: new THREE.Vector3(2000, 500, -3000),
-                size: 200,
-                rotation: 0.0001
-            },
-            {
-                type: 'gas',
-                position: new THREE.Vector3(-3000, -800, -2000),
-                size: 350,
-                rotation: 0.00015
-            },
-            {
-                type: 'mars',
-                position: new THREE.Vector3(3500, 200, -1500),
-                size: 150,
-                rotation: 0.0002
-            },
-            {
-                type: 'ice',
-                position: new THREE.Vector3(-2500, 1200, -2800),
-                size: 180,
-                rotation: 0.00013
-            },
-            {
-                type: 'lava',
-                position: new THREE.Vector3(1800, -700, -4000),
-                size: 220,
-                rotation: 0.00018
-            }
-        ];
-        
-        planets.forEach(planet => {
-            this.createPlanet(planet.type, planet.position, planet.size, planet.rotation);
-        });
-        
-        // Create a distant star (small sun)
-        const sunPosition = new THREE.Vector3(-5000, 3000, -8000);
-        this.createStar('sun', sunPosition, 800);
-        
-        // Add a point light at the sun position
-        const sunLight = new THREE.PointLight(0xffffcc, 1, 15000);
-        sunLight.position.copy(sunPosition);
-        this.scene.add(sunLight);
+        // No planets - empty space background
+        // All planets have been removed as requested
     }
     
-    createPlanet(type, position, size, rotationSpeed) {
+    createPlanet(type, position, size, rotationSpeed, options = {}) {
         const geometry = new THREE.SphereGeometry(size, 32, 32);
         const material = this.planetMaterials[type] || this.planetMaterials.earth;
+        
+        // Apply emissive properties if specified
+        if (options.emissive) {
+            material.emissive = new THREE.Color(options.emissiveColor || 0x113355);
+            material.emissiveIntensity = options.emissiveIntensity || 0.2;
+        }
         
         const planet = new THREE.Mesh(geometry, material);
         planet.position.copy(position);
@@ -143,6 +105,15 @@ export class CelestialBodies {
                 this.addMoon(planet, size);
             }
         }
+        
+        // Add a point light to the planet
+        const planetLight = new THREE.PointLight(
+            options.atmosphereColor || 0x4ca7ff,
+            0.8,
+            size * 10
+        );
+        planetLight.position.set(0, 0, 0);
+        planet.add(planetLight);
         
         return planet;
     }

@@ -21,10 +21,12 @@ export class Planet {
             rotationSpeed: options.rotationSpeed || 0.005,
             atmosphereColor: options.atmosphereColor || 0x4ca7ff,
             atmosphereOpacity: options.atmosphereOpacity || 0.3,
-            emissive: options.emissive || false,
+            emissive: options.emissive !== undefined ? options.emissive : true, // Default to true now
             emissiveColor: options.emissiveColor || 0x113355,
-            emissiveIntensity: options.emissiveIntensity || 0.2,
-            addAtmosphericGlow: options.addAtmosphericGlow !== undefined ? options.addAtmosphericGlow : true
+            emissiveIntensity: options.emissiveIntensity || 0.4, // Increased intensity
+            addAtmosphericGlow: options.addAtmosphericGlow !== undefined ? options.addAtmosphericGlow : true,
+            lightColor: options.lightColor || 0xffffcc,
+            lightIntensity: options.lightIntensity || 1.0
         };
         
         // Create container for the planet
@@ -35,10 +37,8 @@ export class Planet {
         // Load the model
         this.loadPlanetModel();
         
-        // Add a distant point light to simulate sunlight on the planet
-        if (options.addLight) {
-            this.addPlanetLight();
-        }
+        // Always add a planet light now
+        this.addPlanetLight();
     }
     
     /**
@@ -83,6 +83,9 @@ export class Planet {
             if (this.options.addAtmosphericGlow) {
                 this.addAtmosphere();
             }
+            
+            // Add a point light inside the planet for enhanced glow
+            this.addPlanetInnerLight();
         }, (error) => {
             debugHelper.log("Failed to load planet model: " + error.message, "error");
             // Do not create a basic planet, just log the error
@@ -99,7 +102,9 @@ export class Planet {
             color: this.options.atmosphereColor,
             transparent: true,
             opacity: this.options.atmosphereOpacity,
-            side: THREE.BackSide // Render inside of the sphere
+            side: THREE.BackSide, // Render inside of the sphere
+            emissive: this.options.atmosphereColor,
+            emissiveIntensity: 0.5 // Make atmosphere self-illuminating
         });
         
         const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
@@ -111,31 +116,52 @@ export class Planet {
         
         this.planetGroup.add(atmosphere);
         
-        // Add a subtle point light inside the planet for glow effect
+        // Add a stronger point light inside the planet for glow effect
         const atmosphereLight = new THREE.PointLight(
             this.options.atmosphereColor, 
-            0.5, 
-            this.options.scale * 3
+            1.0, // Increased intensity
+            this.options.scale * 5 // Increased range
         );
         atmosphereLight.position.set(0, 0, 0);
         this.planetGroup.add(atmosphereLight);
     }
     
     /**
+     * Add a point light inside the planet for enhanced glow
+     */
+    addPlanetInnerLight() {
+        const innerLight = new THREE.PointLight(
+            this.options.emissiveColor,
+            0.8,
+            this.options.scale * 2
+        );
+        innerLight.position.set(0, 0, 0);
+        this.planetGroup.add(innerLight);
+    }
+    
+    /**
      * Add a distant point light to simulate sunlight
      */
     addPlanetLight() {
-        // Position light far away to simulate directional sunlight
-        const lightPosition = this.options.position.clone().add(new THREE.Vector3(500, 300, 100));
+        // Position light at the planet to illuminate surroundings
+        const lightPosition = new THREE.Vector3(0, 0, 0);
         
         // Create a bright point light
-        const sunlight = new THREE.PointLight(0xffffcc, 2, 2000);
-        sunlight.position.copy(lightPosition);
-        this.scene.add(sunlight);
+        const planetLight = new THREE.PointLight(
+            this.options.lightColor, 
+            this.options.lightIntensity, 
+            this.options.scale * 20
+        );
+        planetLight.position.copy(lightPosition);
+        planetLight.castShadow = true;
         
-        // Create a subtle ambient light
-        const ambientLight = new THREE.AmbientLight(0x333333, 0.5);
-        this.scene.add(ambientLight);
+        // Configure shadow properties
+        planetLight.shadow.mapSize.width = 1024;
+        planetLight.shadow.mapSize.height = 1024;
+        planetLight.shadow.camera.near = 0.5;
+        planetLight.shadow.camera.far = this.options.scale * 20;
+        
+        this.planetGroup.add(planetLight);
     }
     
     /**
