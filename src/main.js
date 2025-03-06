@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { createNoise2D } from 'simplex-noise';
 
-import { WorldGenerator } from './world/WorldGenerator.js';
+import { WorldGenerator } from './environment/WorldGenerator.js';
 import { Player } from './entities/Player.js';
 import { SpaceEnvironment } from './environment/SpaceEnvironment.js';
 import { ResourceManager } from './utils/ResourceManager.js';
