@@ -134,7 +134,13 @@ export class Asteroid {
         // Set model properties
         this.model.scale.set(this.scale, this.scale, this.scale);
         this.model.rotation.copy(this.rotation);
-
+        
+        // Recenter the model geometry to account for the off-screen spawn position
+        const modelBox = new THREE.Box3().setFromObject(this.model);
+        const modelCenter = new THREE.Vector3();
+        modelBox.getCenter(modelCenter);
+        this.model.position.sub(modelCenter);
+        
         // Add emissive properties to make it glow more brightly
         model.traverse((child) => {
             if (child.isMesh && child.material) {
@@ -198,11 +204,10 @@ export class Asteroid {
             return;
         }
 
-        // Update the collision mesh's matrix
-        this.collisionMesh.updateMatrixWorld(true);
-        
-        // First create a temporary bounding box to help calculate the sphere
-        const tempBox = new THREE.Box3().setFromObject(this.collisionMesh);
+        // Update the asteroidGroup's world matrix to ensure correct transforms
+        this.asteroidGroup.updateMatrixWorld(true);
+        // Create a temporary bounding box from the asteroidGroup
+        const tempBox = new THREE.Box3().setFromObject(this.asteroidGroup);
         
         // Create bounding sphere directly (our primary collision shape)
         this.boundingSphere = new THREE.Sphere();
