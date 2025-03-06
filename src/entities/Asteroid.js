@@ -156,7 +156,9 @@ export class Asteroid {
         // Set up user data for the asteroid group
         this.asteroidGroup.userData = {
             isAsteroid: true,
-            asteroidRef: this
+            asteroidRef: this,
+            mass: this.mass,
+            debrisType: 'asteroid'
         };
         
         // Add the asteroid group to the scene

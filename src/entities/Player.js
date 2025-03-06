@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ModelLoader } from '../utils/ModelLoader';
 import debugHelper from '../utils/DebugHelper.js';
 import { MissileManager } from './MissileManager.js';
+import { HealthBar } from '../ui/HealthBar.js';
 
 export class Player {
     constructor(scene, camera, audioListener, resourceManager) {
@@ -51,6 +52,9 @@ export class Player {
         // Game mode
         this.gameMode = 'sideScroller'; // Set game mode to side-scroller
         
+        // Game state
+        this.disableControls = false; // Flag to disable controls on game over
+        
         // Input state
         this.inputControls = {
             up: false,
@@ -77,10 +81,15 @@ export class Player {
         this.engineParticles = null;
         this.engineLights = [];
         
-        // Health and energy
-        this.health = 100;
+        // Health and energy - health is now a property we'll modify based on collisions
+        this.maxHealth = 100;
+        this.health = this.maxHealth;
         this.energy = 100;
         this.energyRechargeRate = 5; // Per second
+        this.healthBar = new HealthBar(this.maxHealth);
+        this.invulnerable = false;
+        this.invulnerableTime = 0;
+        this.invulnerableDuration = 1.0; // One second of invulnerability after being hit
         
         // Weapon systems
         this.missiles = [];
@@ -111,6 +120,8 @@ export class Player {
         
         // Create missile manager
         this.missileManager = new MissileManager(scene, audioListener);
+        
+        debugHelper.log("Player initialized with health system");
     }
     
     /**
@@ -363,49 +374,73 @@ export class Player {
     }
     
     /**
-     * Update the player
-     * @param {number} delta - Time step in seconds
+     * Update the player state
+     * @param {number} delta - The time in seconds since the last update
      */
     update(delta) {
-        // Process input first for maximum responsiveness
+        // If controls are disabled (game over), only update animations
+        if (this.disableControls) {
+            // Update explosions if any
+            if (this.explosions.length > 0) {
+                this.explosions.forEach((explosion, index) => {
+                    explosion.update(delta);
+                    if (explosion.isDone) {
+                        this.scene.remove(explosion.mesh);
+                        this.explosions.splice(index, 1);
+                    }
+                });
+            }
+            return;
+        }
+
+        // Process cooldowns
+        this.missileCooldown = Math.max(0, this.missileCooldown - delta);
+        this.collisionCooldown = Math.max(0, this.collisionCooldown - delta);
         
-        // Auto-fire if enabled, or handle manual shooting
-        if (this.autoFire || this.inputControls.shoot) {
-            if (this.missileCooldown <= 0) {
-                this.shootMissile();
-                this.missileCooldown = this.missileCooldownTime;
+        // Update invulnerability status
+        if (this.invulnerable) {
+            this.invulnerableTime -= delta;
+            
+            // Make ship blink when invulnerable
+            if (this.model) {
+                this.model.visible = Math.floor(this.invulnerableTime * 10) % 2 === 0;
+            }
+            
+            if (this.invulnerableTime <= 0) {
+                this.invulnerable = false;
+                if (this.model) {
+                    this.model.visible = true;
+                }
             }
         }
         
-        // Update missile cooldown
-        if (this.missileCooldown > 0) {
-            this.missileCooldown -= delta;
-        }
-        
-        // Update player movement
+        // Perform movement update
         this.updateMovement(delta);
         
-        // Update missiles
-        this.updateMissiles(delta);
-        
-        // Update engine effects
-        this.updateEngineEffects();
+        // Update visual effects
+        if (this.engineParticles) {
+            this.updateEngineEffects();
+        }
         
         // Update camera position
         this.updateCameraPosition();
         
-        // Check for collisions
-        this.checkCollisions();
-        
-        // Update collision cooldown
-        if (this.collisionCooldown > 0) {
-            this.collisionCooldown -= delta;
+        // Auto-fire missiles if enabled
+        if (this.autoFire && this.missileCooldown <= 0) {
+            this.shootMissile();
         }
         
-        // Recharge energy
-        if (this.energy < 100) {
-            this.energy += this.energyRechargeRate * delta;
-            if (this.energy > 100) this.energy = 100;
+        // Manual fire missiles if space is pressed
+        if (this.inputControls.shoot && this.missileCooldown <= 0) {
+            this.shootMissile();
+        }
+        
+        // Update missiles with collision detection
+        this.updateMissiles(delta);
+        
+        // Check for collisions
+        if (this.collisionCooldown <= 0 && this.boundingBox && !this.invulnerable) {
+            this.checkCollisions();
         }
     }
     
@@ -618,9 +653,9 @@ export class Player {
             // We'll implement more sophisticated collision logic here
             // For debris, asteroids, etc.
             
-            // Check if our bounding box intersects with any debris
+            // Check if our bounding box intersects with any debris or asteroids
             this.scene.traverse((object) => {
-                if (object.userData && object.userData.isDebris) {
+                if (object.userData && (object.userData.isDebris || object.userData.isAsteroid)) {
                     try {
                         // Calculate object's bounding box
                         const debrisBoundingBox = new THREE.Box3().setFromObject(object);
@@ -640,6 +675,10 @@ export class Player {
         }
     }
     
+    /**
+     * Handle a collision with another object
+     * @param {Object} object - The object collided with
+     */
     handleCollision(object) {
         // Safety check - if object is null or undefined, return
         if (!object) {
@@ -652,11 +691,93 @@ export class Player {
         
         // Get object properties with safe defaults
         const debrisType = userData.debrisType || 'asteroid';
-        const debrisMass = userData.mass || (object.mass || 5.0);
+        const isAsteroid = userData.isAsteroid || false;
+        
+        // Get the mass, with multiple fallback options
+        let debrisMass = userData.mass; // First try userData.mass
+        
+        if (debrisMass === undefined || debrisMass === null) {
+            // If there's a direct reference to the asteroid, use its mass
+            if (userData.asteroidRef && userData.asteroidRef.mass !== undefined) {
+                debrisMass = userData.asteroidRef.mass;
+            } else if (object.mass !== undefined) {
+                // Try object.mass as fallback
+                debrisMass = object.mass;
+            } else {
+                // Last resort default
+                debrisMass = 5.0;
+            }
+        }
+        
+        // Log the mass for debugging
+        debugHelper.log(`Collision with ${debrisType} of mass: ${debrisMass.toFixed(1)}`);
         
         // Calculate impact based on relative velocity and mass
         const relativeVelocity = this.velocity.length();
         const impactForce = relativeVelocity * debrisMass * 0.05;
+        
+        // Calculate damage based on debris mass
+        let damage = 0;
+        if (isAsteroid || debrisType === 'asteroid') {
+            // Damage based on asteroid size/mass
+            damage = debrisMass * 2; // Larger asteroids do more damage
+            
+            // Get the asteroid reference and destroy it
+            if (userData.asteroidRef) {
+                const asteroid = userData.asteroidRef;
+                
+                // Create an explosion at the asteroid position
+                // Use object position if available, or asteroid position as fallback
+                const explosionPosition = object.position ? object.position.clone() : 
+                                          (asteroid.position ? asteroid.position.clone() : this.position.clone());
+                
+                this.createExplosion(explosionPosition);
+                
+                // Log the asteroid destruction
+                debugHelper.log("Player collided with asteroid - destroying it");
+                
+                // Call handleHit for any additional asteroid destruction effects
+                if (typeof asteroid.handleHit === 'function') {
+                    asteroid.handleHit();
+                }
+                
+                // Remove the asteroid
+                asteroid.remove();
+            } else if (userData.isAsteroid) {
+                // For asteroids without a proper reference, just create an explosion
+                const explosionPosition = object.position ? object.position.clone() : this.position.clone();
+                this.createExplosion(explosionPosition);
+                debugHelper.log("Player collided with asteroid but couldn't get proper reference");
+                
+                // Try to remove the object directly
+                if (object.parent) {
+                    object.parent.remove(object);
+                } else {
+                    this.scene.remove(object);
+                }
+            }
+        } else {
+            // Generic damage for other types
+            damage = 5;
+        }
+        
+        // Log the calculated damage
+        debugHelper.log(`Calculated damage: ${damage.toFixed(1)} from object with mass ${debrisMass.toFixed(1)}`);
+        
+        // Apply damage to health
+        this.health = Math.max(0, this.health - damage);
+        
+        // Update health bar
+        this.healthBar.update(this.health);
+        
+        // Set invulnerability briefly after being hit
+        this.invulnerable = true;
+        this.invulnerableTime = this.invulnerableDuration;
+        
+        // Check for death
+        if (this.health <= 0) {
+            this.handleDeath();
+        }
         
         // Apply collision response - bounce back in approximately opposite direction
         // First get normalized velocity vector
@@ -686,6 +807,108 @@ export class Player {
         
         // Set collision cooldown to prevent multiple impacts from same object
         this.collisionCooldown = 0.5; // seconds
+        
+        debugHelper.log(`Player took ${damage.toFixed(1)} damage. Health: ${this.health.toFixed(1)}/${this.maxHealth}`);
+    }
+    
+    /**
+     * Handle player death
+     */
+    handleDeath() {
+        // Create explosion at player position
+        this.createExplosion(this.position);
+        
+        // Log death event
+        debugHelper.log("Player died! Game Over!");
+        
+        // Hide the player ship
+        if (this.model) {
+            this.model.visible = false;
+        }
+        
+        // Disable player controls
+        this.disableControls = true;
+        
+        // Create game over UI
+        this.showGameOver();
+        
+        // Stop any playing sounds
+        if (this.engineSound && this.engineSound.isPlaying) {
+            this.engineSound.stop();
+        }
+    }
+    
+    /**
+     * Display game over screen
+     */
+    showGameOver() {
+        // Create game over container
+        const gameOverContainer = document.createElement('div');
+        gameOverContainer.id = 'game-over-container';
+        gameOverContainer.style.position = 'absolute';
+        gameOverContainer.style.top = '0';
+        gameOverContainer.style.left = '0';
+        gameOverContainer.style.width = '100%';
+        gameOverContainer.style.height = '100%';
+        gameOverContainer.style.display = 'flex';
+        gameOverContainer.style.flexDirection = 'column';
+        gameOverContainer.style.alignItems = 'center';
+        gameOverContainer.style.justifyContent = 'center';
+        gameOverContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        gameOverContainer.style.zIndex = '1000';
+        gameOverContainer.style.transition = 'opacity 1s';
+        gameOverContainer.style.opacity = '0';
+        
+        // Create game over text
+        const gameOverText = document.createElement('h1');
+        gameOverText.textContent = 'GAME OVER';
+        gameOverText.style.color = '#ff0000';
+        gameOverText.style.fontFamily = '"Orbitron", sans-serif';
+        gameOverText.style.fontSize = '48px';
+        gameOverText.style.textShadow = '0 0 10px rgba(255, 0, 0, 0.7)';
+        gameOverText.style.marginBottom = '30px';
+        
+        // Create restart button
+        const restartButton = document.createElement('button');
+        restartButton.textContent = 'RESTART';
+        restartButton.style.backgroundColor = '#222';
+        restartButton.style.color = '#fff';
+        restartButton.style.border = '2px solid #0ff';
+        restartButton.style.borderRadius = '5px';
+        restartButton.style.padding = '10px 20px';
+        restartButton.style.fontSize = '18px';
+        restartButton.style.fontFamily = '"Orbitron", sans-serif';
+        restartButton.style.cursor = 'pointer';
+        restartButton.style.boxShadow = '0 0 10px rgba(0, 255, 255, 0.7)';
+        restartButton.style.transition = 'all 0.3s';
+        
+        // Button hover effect
+        restartButton.onmouseover = () => {
+            restartButton.style.backgroundColor = '#0ff';
+            restartButton.style.color = '#000';
+        };
+        
+        restartButton.onmouseout = () => {
+            restartButton.style.backgroundColor = '#222';
+            restartButton.style.color = '#fff';
+        };
+        
+        // Button click event
+        restartButton.onclick = () => {
+            window.location.reload();
+        };
+        
+        // Add elements to container
+        gameOverContainer.appendChild(gameOverText);
+        gameOverContainer.appendChild(restartButton);
+        
+        // Add container to document
+        document.body.appendChild(gameOverContainer);
+        
+        // Fade in the game over screen
+        setTimeout(() => {
+            gameOverContainer.style.opacity = '1';
+        }, 100);
     }
     
     /**

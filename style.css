@@ -67,4 +67,89 @@ canvas {
     overflow: auto;
     z-index: 1000;
     display: none;
+}
+
+/* Health bar styles */
+.health-bar-container {
+    transition: box-shadow 0.3s;
+    z-index: 100;
+}
+
+.health-bar-fill {
+    transition: width 0.3s ease-out, background-color 0.3s;
+}
+
+.health-bar-text {
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Game over screen styles */
+#game-over-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    transition: opacity 1s;
+}
+
+#game-over-container h1 {
+    color: #ff0000;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 48px;
+    text-shadow: 0 0 10px rgba(255, 0, 0, 0.7);
+    margin-bottom: 30px;
+    animation: pulsate 2s infinite;
+}
+
+#game-over-container button {
+    background-color: #222;
+    color: #fff;
+    border: 2px solid #0ff;
+    border-radius: 5px;
+    padding: 10px 20px;
+    font-size: 18px;
+    font-family: 'Orbitron', sans-serif;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
+    transition: all 0.3s;
+}
+
+#game-over-container button:hover {
+    background-color: #0ff;
+    color: #000;
+    transform: scale(1.05);
+}
+
+/* Health bar pulse animation */
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 10px rgba(255, 0, 0, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(255, 0, 0, 1);
+    }
+    100% {
+        box-shadow: 0 0 10px rgba(255, 0, 0, 0.7);
+    }
+}
+
+/* Game over text animation */
+@keyframes pulsate {
+    0% {
+        text-shadow: 0 0 10px rgba(255, 0, 0, 0.7);
+    }
+    50% {
+        text-shadow: 0 0 20px rgba(255, 0, 0, 1);
+    }
+    100% {
+        text-shadow: 0 0 10px rgba(255, 0, 0, 0.7);
+    }
 } 
