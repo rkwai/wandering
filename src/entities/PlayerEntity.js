@@ -196,6 +196,11 @@ export class WeaponComponent extends PhysicsComponent {
             missile.userData.boundingBox.min.subScalar(missilePadding);
             missile.userData.boundingBox.max.addScalar(missilePadding);
             
+            // Only check collisions if the missile is on screen (x between 0 and 300)
+            if (missile.position.x < 0 || missile.position.x > 300) {
+                continue;
+            }
+            
             // Check for collisions with asteroids
             let collisionFound = false;
             this.entity.scene.traverse((object) => {
