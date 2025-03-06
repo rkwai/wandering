@@ -1,4 +1,9 @@
-# Utility Code Guidelines for AI Assistant
+---
+description: 
+globs: src/utils/**/*
+alwaysApply: false
+---
+ # Utility Code Guidelines for AI Assistant
 
 ## Purpose
 The utils directory contains helper classes and functions that provide common functionality used throughout the project. These should be generalized, reusable, and well-documented.

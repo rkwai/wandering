@@ -1,0 +1,71 @@
+---
+description: 
+globs: src/levels/**/*
+alwaysApply: false
+---
+ # Level System Guidelines
+
+## Levels Overview
+The levels directory contains all level-related systems and data:
+- Level definitions and layouts
+- Level loading and management
+- Checkpoint systems
+- Level progression logic
+- Level generation algorithms for procedural content
+- Level serialization and save/load functionality
+
+## Architecture Principles
+- Implement a data-driven approach to level design
+- Separate level data from rendering logic
+- Use a modular approach for level components
+- Implement efficient level loading and unloading
+- Support both fixed and procedurally generated levels
+
+## Level Structure
+- Define clear interfaces for level data
+- Use a standardized format for level definitions (JSON, YAML)
+- Separate static elements from dynamic entities
+- Implement level boundaries and camera constraints
+- Design reusable level components and segments
+
+## Side-Scroller Specific Guidelines
+- Design levels with horizontal progression in mind
+- Implement parallax backgrounds with multiple layers
+- Create proper level transitions (doors, portals, etc.)
+- Design levels with appropriate difficulty progression
+- Implement vertical sections carefully with proper camera behavior
+
+## Level Loading System
+- Implement chunked loading for large levels
+- Use asynchronous loading to prevent frame drops
+- Implement level streaming for seamless transitions
+- Cache level data for frequently accessed areas
+- Implement proper garbage collection for unloaded levels
+
+## Checkpoint System
+- Design a robust checkpoint saving mechanism
+- Implement proper state restoration at checkpoints
+- Position checkpoints at appropriate intervals
+- Consider performance impact of state serialization
+- Allow for manual and automatic checkpoint saves
+
+## Performance Considerations
+- Implement culling for off-screen level elements
+- Use instancing for repeated level elements
+- Optimize collision shapes for level geometry
+- Implement level of detail (LOD) for distant elements
+- Use efficient data structures for level queries
+
+## Level Editor Integration
+- Design level data to be compatible with level editors
+- Implement proper validation for level data
+- Support hot-reloading of level changes during development
+- Consider custom tools for level design workflow
+- Document level format for designer use
+
+## Testing and Debugging
+- Implement debug visualization for level boundaries
+- Support skipping to specific level sections for testing
+- Create test levels for specific mechanics
+- Implement performance profiling for levels
+- Design levels with testability in mind 

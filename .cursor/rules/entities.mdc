@@ -1,0 +1,82 @@
+---
+description: 
+globs: src/entities/**/*
+alwaysApply: false
+---
+ # Game Entity Guidelines for Side-Scroller
+
+## Entity System Overview
+The entities directory contains all game objects that populate the side-scrolling game world:
+- Player character and its states
+- Enemy characters and obstacles
+- Collectibles and power-ups
+- Platforms and moving platforms
+- Interactive objects (switches, doors, etc.)
+- Projectiles and weapons
+- Visual effects and particles
+
+## Entity Architecture
+- All entities should extend the base Entity class
+- Use component-based design for specialized behaviors
+- Implement standard lifecycle methods:
+  - `initialize()`: Set up the entity's initial state
+  - `update(deltaTime)`: Update logic, called every frame
+  - `render()`: Rendering-specific logic (if needed)
+  - `cleanup()`: Resource disposal and cleanup
+  - `onCollision(other)`: Handle collision events
+
+## Side-Scroller Specific Entities
+- Character Controller: Handles player movement, jumping, and abilities
+- Platform: Base class for all platform types
+- MovingPlatform: Platforms with predefined movement patterns
+- Enemy: Base class for all enemy types with AI behaviors
+- Collectible: Items that can be collected by the player
+- Trigger: Invisible entities that trigger events when interacted with
+- Checkpoint: Saves player progress in the level
+- Hazard: Damages the player on contact
+
+## Entity Hierarchy
+- Base Entity -> EntityType -> SpecificEntity
+  - Example: Entity -> Character -> PlayerCharacter
+- Use inheritance for logical categorization, but prefer composition for behaviors
+- Common components:
+  - Physics component (movement, gravity, collision)
+  - Animation component (sprite animation, state transitions)
+  - Input component (player control)
+  - AI component (enemy behavior)
+  - Health/damage component
+  - Collision component (hitboxes, triggers)
+
+## Entity State Management
+- Use a state machine pattern for complex entity behaviors
+- Keep entity state encapsulated within the entity
+- Provide public methods for state queries and modifications
+- Use events to communicate state changes to other systems
+- Implement proper serialization/deserialization for save states
+- Define clear animation states for visual feedback
+
+## Performance Considerations
+- Implement object pooling for frequently created/destroyed entities
+- Use sprite atlases and texture packing for efficient rendering
+- Optimize update frequency based on distance/importance
+- Implement dormancy for inactive entities
+- Use culling to skip updates for off-screen entities
+- Batch similar entities for efficient rendering
+
+## Side-Scroller Best Practices
+- Implement smooth, responsive player controls
+- Design clear visual feedback for player actions
+- Create consistent enemy behavior patterns
+- Implement proper collision detection specific to platforming
+- Use variable jump height based on button press duration
+- Implement coyote time for more forgiving jumps
+- Add subtle effects to enhance game feel (screen shake, particle effects)
+- Design reusable entity templates for consistent level design
+
+## Best Practices
+- Keep entity logic focused on the entity itself
+- Avoid direct references between entities, use event system instead
+- Implement proper cleanup to prevent memory leaks
+- Document entity interaction patterns and dependencies
+- Test entities in isolation with mock dependencies
+- Implement debug visualization for hitboxes and state 

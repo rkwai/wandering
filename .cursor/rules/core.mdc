@@ -1,4 +1,9 @@
-# Core Engine Guidelines for AI Assistant
+---
+description: 
+globs: src/core/**/*
+alwaysApply: false
+---
+ # Core Engine Guidelines for AI Assistant
 
 ## Core Engine Overview
 The core directory contains the fundamental engine components:

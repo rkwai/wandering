@@ -1,0 +1,59 @@
+# Audio System Guidelines
+
+## Audio Overview
+The audio directory contains all audio-related systems and components:
+- Sound effects management
+- Music playback and transitions
+- Audio spatialization for 3D sound
+- Volume control and audio settings
+- Audio preloading and caching
+- Sound pools for frequently used effects
+
+## Architecture Principles
+- Implement a centralized audio manager
+- Separate concerns between music and sound effects
+- Use event-based triggering for gameplay sounds
+- Support dynamic volume adjustment
+- Implement proper audio cleanup and disposal
+
+## Implementation Guidelines
+- Use the Web Audio API for precise audio control
+- Implement audio sprites for small, frequent sound effects
+- Create an abstraction layer over the Web Audio API
+- Support both positional and non-positional audio
+- Implement proper audio loading states (loading, ready, error)
+
+## Sound Effects Guidelines
+- Use consistent volume levels across sound effects
+- Implement variation in repeated sounds
+- Use appropriate audio formats (mp3, ogg) with fallbacks
+- Implement distance-based volume attenuation
+- Create sound categories for volume control (UI, gameplay, ambient)
+
+## Music Guidelines
+- Implement smooth transitions between music tracks
+- Support looping with proper loop points
+- Create layered music systems for dynamic gameplay
+- Adjust music volume based on game context
+- Implement fade in/out for music transitions
+
+## Performance Considerations
+- Limit the number of simultaneous audio sources
+- Implement audio object pooling
+- Preload critical audio assets
+- Use audio compression appropriate for web delivery
+- Implement distance-based culling for 3D audio sources
+
+## Mobile Considerations
+- Handle audio autoplay restrictions on mobile devices
+- Implement touch-to-start audio for mobile browsers
+- Adjust audio quality based on device capabilities
+- Implement proper audio interruption handling for calls/notifications
+- Support background audio pause when app loses focus
+
+## Accessibility
+- Provide visual alternatives for important audio cues
+- Allow independent volume control for different audio categories
+- Support audio description features when appropriate
+- Implement captions for narrative content
+- Allow disabling specific audio categories 

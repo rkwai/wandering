@@ -1,0 +1,64 @@
+---
+description: 
+globs: src/ui/**/*
+alwaysApply: false
+---
+ # UI Components Guidelines
+
+## UI Overview
+The UI directory contains user interface components and systems:
+- HUD elements (health, score, power-ups)
+- Menus (main menu, pause menu, game over)
+- UI animations and transitions
+- Text rendering and localization
+- Interactive UI elements (buttons, sliders)
+- Notifications and feedback systems
+
+## Architecture Principles
+- Use a component-based approach for UI elements
+- Implement responsive design for different screen sizes
+- Separate UI logic from visual representation
+- Follow a consistent visual style throughout the game
+- Use event-driven architecture for UI interactions
+
+## Implementation Guidelines
+- Use CSS for styling static elements when appropriate
+- Implement Three.js-based UI for in-game elements
+- Create reusable UI components with clear interfaces
+- Use tweening libraries for smooth animations
+- Implement proper z-indexing for layered UI elements
+
+## HUD Guidelines
+- Design HUD elements to be non-intrusive
+- Implement fade in/out for contextual information
+- Use consistent positioning and styling
+- Optimize HUD updates to prevent performance issues
+- Consider different screen sizes and aspect ratios
+
+## Menu Implementation
+- Create a centralized menu management system
+- Implement smooth transitions between menu states
+- Design an intuitive navigation flow
+- Use keyboard/gamepad navigation support
+- Implement proper focus management
+
+## Text Rendering
+- Use efficient text rendering techniques
+- Support for localization with string tables
+- Implement text wrapping and overflow handling
+- Consider font loading and rendering performance
+- Use appropriate font sizes for readability
+
+## Accessibility
+- Implement keyboard navigation alternatives
+- Use sufficient color contrast for visibility
+- Design UI with screen readers in mind
+- Support configurable text sizes
+- Implement alternative control schemes
+
+## Performance Considerations
+- Minimize DOM updates for UI elements
+- Use sprite atlases for UI textures
+- Implement UI element pooling for dynamic elements
+- Optimize animations to prevent layout thrashing
+- Use event delegation for UI interaction handling 

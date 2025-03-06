@@ -1,0 +1,71 @@
+---
+description: 
+globs: src/input/**/*
+alwaysApply: false
+---
+ # Input System Guidelines
+
+## Input Overview
+The input directory contains all input-related systems and handlers:
+- Keyboard and mouse input processing
+- Gamepad and touch support
+- Input mapping and configuration
+- Gesture recognition
+- Input state management
+- Input recording and playback (for demos/replays)
+
+## Architecture Principles
+- Implement a device-agnostic input abstraction layer
+- Use event-based architecture for input handling
+- Separate input detection from input response
+- Support multiple input methods simultaneously
+- Implement input prioritization for conflicting bindings
+
+## Implementation Guidelines
+- Create an input manager as the central coordinator
+- Use the observer pattern for input event subscriptions
+- Implement proper input debouncing and throttling
+- Handle input context switching (menus vs. gameplay)
+- Support dynamic rebinding of inputs
+
+## Side-Scroller Specific Input
+- Implement responsive controls for character movement
+- Design jump mechanics with appropriate buffer timing
+- Support advanced movement techniques (wall jumps, dashes)
+- Implement context-sensitive actions
+- Design controls for seamless platform traversal
+
+## Gamepad Support
+- Support standard gamepad mappings
+- Implement proper deadzone handling for analog sticks
+- Support rumble/vibration feedback when available
+- Handle gamepad connection/disconnection gracefully
+- Implement consistent button mapping across gamepads
+
+## Touch Controls
+- Design touch controls specifically for mobile play
+- Implement virtual buttons/joysticks for touch devices
+- Support multi-touch for simultaneous inputs
+- Use gesture recognition for special moves
+- Adapt UI layout for touch interaction
+
+## Input Configuration
+- Allow complete remapping of controls
+- Store input preferences persistently
+- Implement sensible default configurations
+- Support different control schemes (simple/advanced)
+- Provide visual feedback for current control bindings
+
+## Performance Considerations
+- Optimize event handling to prevent input lag
+- Use efficient data structures for input state tracking
+- Implement input prediction when appropriate
+- Batch input processing to minimize overhead
+- Handle high-frequency inputs efficiently
+
+## Accessibility
+- Support alternative input methods for accessibility
+- Implement single-button mode options
+- Allow customization of input sensitivity
+- Support input simplification for different ability levels
+- Design with platform-specific accessibility features in mind 

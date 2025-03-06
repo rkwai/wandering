@@ -1,0 +1,83 @@
+---
+description: 
+globs: public/assets/**/*
+alwaysApply: false
+---
+ # Asset Management Guidelines for Side-Scroller Game
+
+## Asset Organization
+The assets directory follows this structure:
+- `/models`: 3D models organized by category (for 2.5D elements)
+  - `/models/characters`: Player and enemy character models
+  - `/models/props`: Interactive and decorative objects
+  - `/models/environment`: Environmental elements and structures
+- `/sprites`: 2D sprite assets
+  - `/sprites/characters`: Character sprite sheets
+  - `/sprites/animations`: Animation sprite sheets
+  - `/sprites/ui`: User interface elements
+  - `/sprites/effects`: Visual effects and particles
+- `/backgrounds`: Background layers and parallax elements
+  - `/backgrounds/foreground`: Closest parallax layers
+  - `/backgrounds/midground`: Middle parallax layers
+  - `/backgrounds/background`: Distant parallax layers
+- `/audio`: Sound effects and music tracks
+  - `/audio/music`: Background music and themes
+  - `/audio/sfx`: Sound effects organized by type
+  - `/audio/ambient`: Ambient and environmental sounds
+
+## Sprite Guidelines
+- Use consistent sprite sizes within character sets
+- Create sprite sheets with uniform grid layouts
+- Include appropriate transparent padding around sprites
+- Use power-of-two dimensions for optimal performance
+- Organize animation frames sequentially
+- Include sprite data JSON files with frame information
+- Design sprites at 2x resolution for high-DPI displays
+- Maintain consistent art style across all sprites
+
+## Background Guidelines
+- Design backgrounds as seamlessly tileable for infinite scrolling
+- Create multiple parallax layers for depth (typically 3-5 layers)
+- Use consistent dimensions for each parallax category
+- Ensure smooth transitions between background themes
+- Include variants for different environmental conditions
+- Design backgrounds with proper contrast for gameplay visibility
+
+## Model Guidelines (for 2.5D elements)
+- All models should be in glTF/GLB format
+- Optimize models for web (reduce polygon count, texture size)
+- Use simple materials for consistent style
+- Apply appropriate scale to fit with 2D elements
+- Orient models with Y-up coordinate system
+- Design models to work with orthographic camera view
+- Consider using billboarding techniques for optimization
+
+## Texture Guidelines
+- Use power-of-two dimensions (512x512, 1024x1024, etc.)
+- Save as compressed formats when possible (WebP, compressed PNG)
+- Use texture atlases for related small textures
+- Implement proper mipmapping for distant textures
+- Consider memory usage on mobile devices
+
+## Audio Guidelines
+- Format: Use MP3 for music, WebM or MP3 for sound effects
+- Normalize audio levels across all sound effects
+- Keep sound effects short and focused
+- Design layered music for dynamic gameplay
+- Create alternative shorter loops for repeated actions
+- Implement variations for common sound effects
+
+## Loading and Performance
+- All assets are loaded through their respective manager classes
+- Large assets should be loaded asynchronously
+- Critical assets should be preloaded at startup
+- Implement level-specific asset loading
+- Use progressive loading for large levels
+- Consider texture compression for mobile devices
+
+## Naming Conventions
+- Use descriptive, lowercase names with hyphens
+- Include category in filename (e.g., `character-hero-idle.png`)
+- Version assets with suffixes when iterating (e.g., `background-forest-v2.png`)
+- Follow a consistent naming pattern within each asset category
+- Use numbering for sequential frames (e.g., `character-run-01.png`) 

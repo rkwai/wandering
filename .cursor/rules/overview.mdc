@@ -1,16 +1,28 @@
-# Wandering Project - AI Assistant Guidelines
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Wandering Project - Side-Scroller Game Architecture
 
 ## Project Overview
-This is a 3D web-based game/simulation built with Three.js. The project focuses on space exploration with procedurally generated environments and physics-based interactions.
+This is a 2.5D web-based side-scroller game built with Three.js. The project focuses on a smooth, performant scrolling experience with layered backgrounds, parallax effects, and physics-based character interactions.
 
 ## Code Organization
 - `/src`: Contains all source code
   - `/src/core`: Core engine components (rendering, physics, game loop)
   - `/src/utils`: Utility functions and helper classes
-  - `/src/entities`: Game objects and entities
-  - `/src/environment`: Environmental elements and scene setup
+  - `/src/entities`: Game objects and entities (player, enemies, collectibles)
+  - `/src/environment`: Environmental elements, levels, and backgrounds
+  - `/src/ui`: User interface components and HUD elements
+  - `/src/audio`: Audio management and sound effects
+  - `/src/levels`: Level definitions, stages, and progression
+  - `/src/input`: Input handling and controls
 - `/public/assets`: Contains all game assets
   - `/public/assets/models`: 3D models in GLB/GLTF format
+  - `/public/assets/sprites`: 2D sprite sheets and textures
+  - `/public/assets/audio`: Sound effects and music
+  - `/public/assets/backgrounds`: Parallax background layers
 
 ## Coding Standards
 
@@ -34,6 +46,13 @@ This is a 3D web-based game/simulation built with Three.js. The project focuses 
 - Dispose of geometries, materials, and textures when no longer needed
 - Use LOD (Level of Detail) for complex models
 - Optimize with frustum culling for off-screen objects
+- Use orthographic camera for consistent 2.5D perspective
+
+### Sprite and Animation Handling
+- Use sprite sheets for animated elements
+- Implement efficient sprite animation system
+- Use texture atlases to minimize texture switches
+- Cache and reuse animation data
 
 ### Model Loading
 - Always use the ModelLoader class for loading 3D models
@@ -48,6 +67,14 @@ This is a 3D web-based game/simulation built with Three.js. The project focuses 
 - Implement proper garbage collection patterns
 - Optimize render cycles with proper scene management
 - Use WebWorkers for heavy calculations
+- Implement object culling for off-screen entities
+- Use parallax layers efficiently through instancing
+
+### Side-Scroller Specific Patterns
+- Implement camera follow/tracking system
+- Use infinite scrolling or chunked level loading
+- Employ efficient collision detection for platforming
+- Implement robust character controller with responsive jumping/movement
 
 ### Error Handling
 - Use try/catch blocks for error-prone operations

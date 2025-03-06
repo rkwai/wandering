@@ -1,0 +1,80 @@
+---
+description: 
+globs: src/environment/**/*
+alwaysApply: false
+---
+ # Environment System Guidelines for Side-Scroller
+
+## Environment Overview
+The environment directory contains components for creating and managing the side-scrolling game world:
+- Background layers and parallax scrolling
+- Terrain and platform generation
+- Environmental effects (weather, particles)
+- Lighting systems and day/night cycles
+- Decorative elements and props
+- Environmental hazards
+- Level boundaries and death zones
+
+## Environment Architecture
+- BackgroundManager: Handles multi-layered parallax backgrounds
+- EnvironmentGenerator: Creates level environments (procedural or fixed)
+- WeatherSystem: Manages weather effects and particles
+- LightingSystem: Controls dynamic lighting and shadows
+- PropsManager: Handles decorative, non-interactive elements
+- HazardManager: Controls environmental dangers
+
+## Parallax Background System
+- Implement multiple background layers with different scroll speeds
+- Design seamless, loopable background textures
+- Create depth through layer transparency and color adjustments
+- Support dynamic time-of-day changes affecting backgrounds
+- Implement efficient texture handling to prevent memory issues
+- Support transitions between different background themes
+
+## Level Environment Guidelines
+- Create visually distinct environments with unique themes
+- Maintain consistent visual language for interactive elements
+- Use environmental cues to guide player progression
+- Design foreground elements that frame the gameplay area
+- Implement subtle animations for living environments
+
+## Lighting Best Practices
+- Use appropriate light types for the situation:
+  - Directional lights for sun/moonlight
+  - Point lights for local illumination (torches, lamps)
+  - Spot lights for focused effects
+- Implement dynamic shadow casting for moving objects
+- Use lighting to enhance mood and guide player attention
+- Consider performance impact of dynamic lights
+- Implement light occlusion for indoor/cave areas
+
+## Performance Considerations
+- Use sprite atlases for environmental textures
+- Implement culling for off-screen environment elements
+- Cache and reuse common environmental objects
+- Optimize parallax calculations
+- Use shader-based effects when appropriate for better performance
+- Consider memory usage for large levels
+
+## Weather and Environmental Effects
+- Implement scalable particle systems for effects (rain, snow, leaves)
+- Apply shader effects for environmental conditions (fog, heat haze)
+- Design weather that affects gameplay when appropriate
+- Create transitions between weather states
+- Consider performance impact on mobile devices
+
+## Interactivity
+- Define clear interfaces for entity-environment interaction
+- Implement environmental physics (wind, water currents)
+- Design reactive environments (grass that moves, breakable objects)
+- Use events to communicate environment changes
+- Consider environmental storytelling elements
+- Implement sound design that reflects the environment
+- Create interactive props that enhance gameplay
+
+## Side-Scroller Specific Considerations
+- Design environments with horizontal flow in mind
+- Use vertical elements strategically to guide upward/downward movement
+- Create visual cues for platform edges and jumping distances
+- Implement consistent visual language for different surface types
+- Design backgrounds that enhance the sense of movement and progress 
