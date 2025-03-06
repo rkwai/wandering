@@ -1,0 +1,52 @@
+# Game Entity Guidelines for AI Assistant
+
+## Entity System Overview
+The entities directory contains all game objects that populate the game world:
+- Player ships and vehicles
+- NPC characters and AI-controlled entities
+- Interactive objects and items
+- Projectiles and weapons
+- Environmental entities (asteroids, debris, etc.)
+
+## Entity Architecture
+- All entities should extend the base Entity class
+- Use component-based design for specialized behaviors
+- Implement standard lifecycle methods:
+  - `initialize()`: Set up the entity's initial state
+  - `update(deltaTime)`: Update logic, called every frame
+  - `render()`: Rendering-specific logic (if needed)
+  - `cleanup()`: Resource disposal and cleanup
+  - `onCollision(other)`: Handle collision events
+
+## Entity Hierarchy
+- Base Entity -> EntityType -> SpecificEntity
+  - Example: Entity -> Ship -> PlayerShip
+- Use inheritance for logical categorization, but prefer composition for behaviors
+- Common components:
+  - Physics component (movement, collision)
+  - Visual component (model, effects)
+  - Input component (player control)
+  - AI component (NPC behavior)
+  - Health/damage component
+
+## Entity State Management
+- Use a state machine pattern for complex entity behaviors
+- Keep entity state encapsulated within the entity
+- Provide public methods for state queries and modifications
+- Use events to communicate state changes to other systems
+- Implement proper serialization/deserialization for save states
+
+## Performance Considerations
+- Implement object pooling for frequently created/destroyed entities
+- Use LOD (Level of Detail) for complex entities
+- Optimize update frequency based on distance/importance
+- Implement dormancy for inactive entities
+- Use frustum culling to skip updates for off-screen entities
+
+## Best Practices
+- Keep entity logic focused on the entity itself
+- Avoid direct references between entities, use event system instead
+- Implement proper cleanup to prevent memory leaks
+- Use predictive techniques for networked entities
+- Document entity interaction patterns and dependencies
+- Test entities in isolation with mock dependencies 

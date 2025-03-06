@@ -1,0 +1,51 @@
+# Core Engine Guidelines for AI Assistant
+
+## Core Engine Overview
+The core directory contains the fundamental engine components:
+- Rendering pipeline and scene management
+- Physics simulation
+- Input handling
+- Game loop and timing
+- Camera systems
+- Event management
+
+## Architecture Principles
+- The core engine should be agnostic to specific game mechanics
+- Components should be modular and loosely coupled
+- Use composition over inheritance where possible
+- Implement interfaces (through JSDoc) for consistent APIs
+- Follow the principle of least privilege for method/property access
+
+## Rendering Guidelines
+- Use WebGL2 features when available
+- Implement proper depth sorting for transparent objects
+- Use instancing for repeated geometry
+- Manage render targets and post-processing efficiently
+- Implement proper culling for off-screen objects
+
+## Physics Guidelines
+- Use a fixed timestep for physics updates
+- Implement spatial partitioning for collision detection
+- Use simplified collision shapes when possible
+- Separate collision detection from collision response
+- Cache physics calculations when appropriate
+
+## Input Management
+- Abstract input methods (keyboard, mouse, touch, gamepad)
+- Implement input mapping system for configurable controls
+- Handle multi-touch and gesture recognition
+- Account for different screen sizes and device capabilities
+
+## Game Loop Best Practices
+- Use requestAnimationFrame for the main loop
+- Implement delta time for frame-rate independent movement
+- Separate update logic from render logic
+- Consider using a fixed update for physics and variable update for rendering
+- Monitor performance and implement adaptive quality settings
+
+## Error Recovery
+- The core engine should be resilient to errors in game code
+- Implement state validation to prevent invalid game states
+- Use defensive programming techniques
+- Log errors with sufficient context for debugging
+- Implement fallbacks for critical systems 

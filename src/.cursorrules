@@ -1,0 +1,48 @@
+# Source Code Guidelines for AI Assistant
+
+## Architecture Overview
+The source code follows a component-based architecture:
+- Each game entity is represented as a class 
+- The main game loop manages updates and rendering
+- The core engine handles rendering, physics, and input
+- Utility functions provide reusable helper methods
+
+## Code Structure Patterns
+- Use factory patterns for creating complex entities
+- Implement observer pattern for event handling
+- Use the singleton pattern sparingly (only for global managers)
+- Follow dependency injection principles for testability
+- Separate concerns between rendering, logic, and input handling
+
+## Import Guidelines
+- Prefer named imports over default imports
+- Group imports by external libraries, then internal modules
+- Import from Three.js modules directly rather than the main package
+  ```javascript
+  // Preferred
+  import { Vector3 } from 'three';
+  import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+  
+  // Avoid
+  import * as THREE from 'three';
+  ```
+
+## Class Structure
+- Constructor should initialize all properties
+- Use getter/setter methods for properties that need validation
+- Implement render() and update() methods consistently
+- Place private helper methods at the bottom of the class
+- Use static methods for utility functions that don't require instance state
+
+## State Management
+- Avoid global state when possible
+- Use event-based communication between components
+- Store persistent game state in dedicated manager classes
+- Clear temporary state when objects are destroyed or disabled
+
+## Performance Tips
+- Cache references to frequently accessed objects/properties
+- Pre-calculate expensive operations where possible
+- Use object pooling for particle effects and projectiles
+- Throttle expensive operations that don't need to run every frame
+- Profile and optimize render-critical code paths 

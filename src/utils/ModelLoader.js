@@ -23,9 +23,9 @@ export class ModelLoader {
     }
     
     /**
-     * Load a GLB/GLTF model from the assets directory
+     * Load a GLB/GLTF model
      * 
-     * @param {string} modelPath - Path to the model relative to the assets directory
+     * @param {string} modelPath - Path to the model (if relative, /assets/ will be prepended)
      * @param {Function} onLoad - Callback when model is loaded with the model as parameter
      * @param {Function} onError - Callback when model fails to load with the error as parameter
      * @param {boolean} cache - Whether to cache the model for future use (default: true)
@@ -38,59 +38,27 @@ export class ModelLoader {
             return;
         }
         
-        // Format the path correctly with proper handling of various input formats
-        let fullPath = modelPath;
-        let alternativePaths = [];
-        
-        // If the path doesn't have /assets or public/assets, add it
-        if (!modelPath.includes('/assets/')) {
-            // First try: Check if it starts with 'models/'
-            if (modelPath.startsWith('models/')) {
-                fullPath = `/assets/${modelPath}`;
-                alternativePaths.push(fullPath);
-                alternativePaths.push(`/public/assets/${modelPath}`);
-                alternativePaths.push(modelPath); // Try the original path too
-            } else {
-                // File name only - try different directories
-                const filename = modelPath.split('/').pop();
-                
-                // Try specific subdirectories based on file patterns
-                if (filename.startsWith('spaceship') || filename.startsWith('missile')) {
-                    alternativePaths.push(`/assets/models/spaceships/${filename}`);
-                    alternativePaths.push(`/public/assets/models/spaceships/${filename}`);
-                } else if (filename.startsWith('asteroid')) {
-                    alternativePaths.push(`/assets/models/asteroids/${filename}`);
-                    alternativePaths.push(`/public/assets/models/asteroids/${filename}`);
-                } else if (filename.startsWith('planet')) {
-                    alternativePaths.push(`/assets/models/environment/${filename}`);
-                    alternativePaths.push(`/public/assets/models/environment/${filename}`);
-                }
-                
-                // Also try the root models directory
-                alternativePaths.push(`/assets/models/${filename}`);
-                alternativePaths.push(`/public/assets/models/${filename}`);
-                fullPath = alternativePaths[0]; // Use first alternative as the primary path
-            }
-        }
+        // Process the path - if it starts with / or http, treat as absolute, otherwise add /assets/
+        const fullPath = modelPath.startsWith('/') || modelPath.startsWith('http') 
+            ? modelPath 
+            : `/assets/${modelPath}`;
         
         console.log(`Loading model from path: ${fullPath}`);
         
-        // Try loading with the first path
-        this.tryLoadingWithPath(fullPath, alternativePaths, modelPath, onLoad, onError, cache);
+        this.loadModelFromPath(fullPath, modelPath, onLoad, onError, cache);
     }
     
     /**
-     * Try loading a model with a specific path, falling back to alternatives if needed
+     * Load a model from the specified path
      * 
-     * @param {string} path - Path to try loading from
-     * @param {Array<string>} alternativePaths - Alternative paths to try if this one fails
+     * @param {string} path - Path to load the model from
      * @param {string} originalPath - The original path for caching
      * @param {Function} onLoad - Success callback
      * @param {Function} onError - Error callback
      * @param {boolean} cache - Whether to cache the model
      */
-    tryLoadingWithPath(path, alternativePaths, originalPath, onLoad, onError, cache) {
-        console.log(`Attempting to load model from: ${path}`);
+    loadModelFromPath(path, originalPath, onLoad, onError, cache) {
+        console.log(`Loading model from: ${path}`);
         
         this.loader.load(
             path,
@@ -123,22 +91,7 @@ export class ModelLoader {
             (error) => {
                 console.error(`Failed to load model: ${path}`, error);
                 
-                // Try alternative paths if available
-                if (alternativePaths.length > 0) {
-                    // Remove the path we just tried if it's in the alternatives
-                    alternativePaths = alternativePaths.filter(p => p !== path);
-                    
-                    if (alternativePaths.length > 0) {
-                        const nextPath = alternativePaths[0];
-                        console.log(`Retrying with alternative path: ${nextPath}`);
-                        
-                        // Try the next path
-                        this.tryLoadingWithPath(nextPath, alternativePaths, originalPath, onLoad, onError, cache);
-                        return;
-                    }
-                }
-                
-                // If we've exhausted all paths, call the error callback
+                // Call the error callback
                 if (onError) onError(error);
             }
         );

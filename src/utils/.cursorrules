@@ -1,0 +1,54 @@
+# Utility Code Guidelines for AI Assistant
+
+## Purpose
+The utils directory contains helper classes and functions that provide common functionality used throughout the project. These should be generalized, reusable, and well-documented.
+
+## ModelLoader Class
+The ModelLoader handles loading and caching of 3D models:
+- Recently simplified to remove alternative path resolution
+- Now processes paths as follows:
+  - Absolute paths (starting with '/' or 'http') used directly
+  - Relative paths prefixed with '/assets/'
+- Models are cached by their original path reference
+- All loaded models have shadow properties applied
+
+## ResourceManager
+The ResourceManager handles loading and management of various game resources:
+- Textures, audio, and other non-model assets
+- Provides progress tracking for loading operations
+- Handles preloading of assets for performance
+- Includes resource disposal methods to prevent memory leaks
+
+## DebugHelper
+The DebugHelper provides tools for debugging and development:
+- Performance monitoring utilities
+- Scene inspection helpers
+- Visualization of physics colliders and raycasts
+- FPS counter and memory usage statistics
+- Configurable debug level (off, basic, verbose)
+
+## Code Guidelines for Utilities
+- Each utility class should have a single responsibility
+- Functions should be pure when possible (same input = same output)
+- Error handling should be thorough and provide meaningful messages
+- Parameters should have sensible defaults when appropriate
+- Use TypeScript-style JSDoc comments for improved type hinting
+- Example:
+  ```javascript
+  /**
+   * Calculates the distance between two 3D points
+   * @param {THREE.Vector3} point1 - The first point
+   * @param {THREE.Vector3} point2 - The second point
+   * @returns {number} The distance between the points
+   */
+  function calculateDistance(point1, point2) {
+      // Implementation
+  }
+  ```
+
+## Error Handling in Utilities
+- Use descriptive error messages that help identify the issue
+- Include parameter validation at the beginning of functions
+- Provide fallback behavior for non-critical failures
+- Log errors with context but avoid excessive console output
+- Return null or a default value rather than throwing for minor issues 
