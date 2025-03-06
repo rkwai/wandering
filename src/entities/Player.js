@@ -3,6 +3,7 @@ import { ModelLoader } from '../utils/ModelLoader';
 import debugHelper from '../utils/DebugHelper.js';
 import { MissileManager } from './MissileManager.js';
 import { HealthBar } from '../ui/HealthBar.js';
+import debugVisualizer from '../utils/DebugVisualizer.js';
 
 export class Player {
     constructor(scene, camera, audioListener, resourceManager) {
@@ -250,6 +251,12 @@ export class Player {
             // Create bounding box for collision detection
             this.boundingBox = new THREE.Box3().setFromObject(this.shipGroup);
             
+            // Visualize bounding box for debugging
+            const visualizer = debugVisualizer.getInstance();
+            if (visualizer) {
+                visualizer.visualizeBox(this.boundingBox, 'player', 'player');
+            }
+            
             debugHelper.log("Spaceship model loaded successfully!");
         }, (error) => {
             // Error callback
@@ -441,6 +448,17 @@ export class Player {
         // Check for collisions
         if (this.collisionCooldown <= 0 && this.boundingBox && !this.invulnerable) {
             this.checkCollisions();
+        }
+        
+        // Update the bounding box to match the ship's current position
+        if (this.boundingBox && this.shipGroup) {
+            this.boundingBox.setFromObject(this.shipGroup);
+            
+            // Update visualization for debugging
+            const visualizer = debugVisualizer.getInstance();
+            if (visualizer) {
+                visualizer.visualizeBox(this.boundingBox, 'player', 'player');
+            }
         }
     }
     
@@ -650,20 +668,28 @@ export class Player {
     checkCollisions() {
         // Only check collisions if cooldown is inactive and boundingBox exists
         if (this.collisionCooldown <= 0 && this.boundingBox) {
-            // We'll implement more sophisticated collision logic here
-            // For debris, asteroids, etc.
-            
             // Check if our bounding box intersects with any debris or asteroids
             this.scene.traverse((object) => {
                 if (object.userData && (object.userData.isDebris || object.userData.isAsteroid)) {
                     try {
-                        // Calculate object's bounding box
-                        const debrisBoundingBox = new THREE.Box3().setFromObject(object);
+                        // Get asteroid reference if available
+                        const asteroid = object.userData.asteroidRef;
                         
-                        // Check for intersection
-                        if (this.boundingBox.intersectsBox(debrisBoundingBox)) {
-                            // Handle collision
-                            this.handleCollision(object);
+                        if (asteroid && asteroid.checkCollision) {
+                            // Use the asteroid's sphere-based collision detection
+                            if (asteroid.checkCollision(this.boundingBox)) {
+                                // Handle collision with the asteroid
+                                this.handleCollision(object);
+                            }
+                        } else {
+                            // Fallback to box-based collision for other objects
+                            const debrisBoundingBox = new THREE.Box3().setFromObject(object);
+                            
+                            // Check for intersection
+                            if (this.boundingBox.intersectsBox(debrisBoundingBox)) {
+                                // Handle collision
+                                this.handleCollision(object);
+                            }
                         }
                     } catch (error) {
                         // Silently ignore errors during collision detection
@@ -971,55 +997,50 @@ export class Player {
                         
                         // Only check collision if asteroid is fully loaded
                         if (asteroid && asteroid.isModelLoaded) {
-                            // Ensure bounding box is up to date
-                            if (!asteroid.boundingBox) {
-                                asteroid.updateBoundingBox();
-                            }
-                            
-                            if (asteroid.boundingBox) {
-                                // Use the asteroid's bounding box as is, without expansion
-                                // This will make missiles hit closer to the visual model
-                                const asteroidBox = asteroid.boundingBox;
+                            // Use the asteroid's sphere-based collision detection
+                            if (asteroid.checkCollision && asteroid.checkCollision(boundingBox)) {
+                                collisionFound = true;
                                 
-                                // Shrink missile bounding box slightly for more precision
-                                const missileBox = boundingBox.clone();
-                                // No expansion of missile box for precise collision
+                                // Calculate the actual impact point - find the closest point on missile bounding box to asteroid center
+                                const missileClosestPoint = new THREE.Vector3();
+                                boundingBox.clampPoint(asteroid.boundingSphere.center, missileClosestPoint);
                                 
-                                // Check for intersection with asteroid box
-                                if (missileBox.intersectsBox(asteroidBox)) {
-                                    collisionFound = true;
-                                    
-                                    // Calculate impact point at the center of the intersection
-                                    const impactPoint = new THREE.Vector3();
-                                    
-                                    // Calculate intersection of the two boxes
-                                    const intersection = new THREE.Box3();
-                                    intersection.copy(missileBox).intersect(asteroidBox);
-                                    intersection.getCenter(impactPoint);
-                                    
-                                    // Log the collision
-                                    debugHelper.log(`Player: COLLISION! Missile hit asteroid at position (${impactPoint.x.toFixed(1)}, ${impactPoint.y.toFixed(1)}, ${impactPoint.z.toFixed(1)})`);
-                                    
-                                    // Call the asteroid's handleHit method if it exists
-                                    if (typeof asteroid.handleHit === 'function') {
-                                        asteroid.handleHit();
-                                    }
-                                    
-                                    // Remove the asteroid
-                                    asteroid.remove();
-                                    
-                                    debugHelper.log("Player: Asteroid destroyed by missile");
-                                    
-                                    // Set collision result to return to the missile manager
-                                    collisionResult = {
-                                        position: impactPoint,
-                                        object: asteroid
-                                    };
+                                // Find the direction from asteroid center to missile
+                                const impactDirection = new THREE.Vector3().subVectors(missileClosestPoint, asteroid.boundingSphere.center).normalize();
+                                
+                                // Calculate the actual impact point on the asteroid surface
+                                const impactPoint = new THREE.Vector3().addVectors(
+                                    asteroid.boundingSphere.center,
+                                    impactDirection.multiplyScalar(asteroid.boundingSphere.radius)
+                                );
+                                
+                                // Log the collision
+                                debugHelper.log(`Player: COLLISION! Missile hit asteroid at position (${impactPoint.x.toFixed(1)}, ${impactPoint.y.toFixed(1)}, ${impactPoint.z.toFixed(1)})`);
+                                
+                                // Call the asteroid's handleHit method if it exists
+                                if (typeof asteroid.handleHit === 'function') {
+                                    asteroid.handleHit();
                                 }
+                                
+                                // Create explosion at the actual impact point on asteroid surface
+                                this.createExplosion(impactPoint);
+                                
+                                // Create an explosion at the missile's position too
+                                this.missileManager.createExplosion(missile.position.clone());
+                                
+                                // Remove the asteroid
+                                asteroid.remove();
+                                
+                                // Set collision result with impact position for the MissileManager
+                                collisionResult = {
+                                    position: impactPoint,
+                                    object: asteroid
+                                };
                             }
                         }
                     } catch (error) {
-                        console.error("Error in missile collision detection:", error);
+                        // Log error but continue checking other asteroids
+                        debugHelper.log(`Player: Error checking missile collision: ${error.message}`, "error");
                     }
                 }
                 

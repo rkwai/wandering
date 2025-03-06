@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ModelLoader } from '../utils/ModelLoader.js';
 import { ObjectPool } from '../core/ObjectPool.js';
 import debugHelper from '../utils/DebugHelper.js';
+import debugVisualizer from '../utils/DebugVisualizer.js';
 
 /**
  * Class responsible for managing all missile-related functionality
@@ -32,6 +33,9 @@ export class MissileManager {
         this.soundsLoaded = false;
         this.missileSound = null;
         this.collisionSound = null;
+        
+        // Effects
+        this.enableExplosions = true; // Enable explosion effects by default
         
         // Initialize
         this.init();
@@ -545,10 +549,20 @@ export class MissileManager {
             // Create or update missile bounding box
             missile.userData.boundingBox.setFromObject(missile);
             
-            // Add minimal padding to the missile bounding box for more precise collision detection
-            const missilePadding = 0.5; // Reduced padding for more precise hits
+            // Add minimal padding to the missile bounding box for pixel-perfect collision detection
+            const missilePadding = 0.2; // Reduced from 3.0 to 0.2 for more precise collisions
             missile.userData.boundingBox.min.subScalar(missilePadding);
             missile.userData.boundingBox.max.addScalar(missilePadding);
+            
+            // Visualize missile bounding box for debugging
+            const visualizer = debugVisualizer.getInstance();
+            if (visualizer) {
+                // Make sure the missile has an ID for visualization tracking
+                if (!missile.id) {
+                    missile.id = 'missile_' + Math.random().toString(36).substring(2, 10);
+                }
+                visualizer.visualizeBox(missile.userData.boundingBox, missile.id, 'missile');
+            }
             
             // Check if missile has lived too long or gone too far
             if (missile.userData.lifeTime > missile.userData.maxLifeTime || 
@@ -611,5 +625,27 @@ export class MissileManager {
         if (this.collisionSound) {
             this.collisionSound.stop();
         }
+    }
+
+    /**
+     * Remove a missile from the scene
+     * @param {THREE.Object3D} missile - The missile to remove
+     */
+    removeMissile(missile) {
+        // Always create an explosion at the missile's position for all removals
+        // This ensures both lifetime expirations and collisions have explosions
+        this.createExplosion(missile.position.clone());
+        
+        // Remove visualization
+        const visualizer = debugVisualizer.getInstance();
+        if (visualizer && missile.id) {
+            visualizer.removeVisualization(missile.id);
+        }
+        
+        // Remove missile from scene
+        this.scene.remove(missile);
+        
+        // Return missile to object pool
+        this.missilePool.release(missile);
     }
 } 

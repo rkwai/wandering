@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ModelLoader } from '../utils/ModelLoader.js';
 import debugHelper from '../utils/DebugHelper.js';
+import debugVisualizer from '../utils/DebugVisualizer.js';
 
 /**
  * Class representing an asteroid in the game
@@ -19,6 +20,9 @@ export class Asteroid {
         this.scene = scene;
         this.resourceManager = resourceManager;
         this.onLoaded = onLoaded;
+        
+        // Generate a unique ID for this asteroid
+        this.id = 'asteroid_' + Math.random().toString(36).substring(2, 10);
         
         // For side-scrolling, position asteroids to the right of the screen
         this.position = position || new THREE.Vector3(
@@ -130,7 +134,7 @@ export class Asteroid {
         // Set model properties
         this.model.scale.set(this.scale, this.scale, this.scale);
         this.model.rotation.copy(this.rotation);
-        
+
         // Add emissive properties to make it glow more brightly
         model.traverse((child) => {
             if (child.isMesh && child.material) {
@@ -194,28 +198,45 @@ export class Asteroid {
             return;
         }
 
-        // Create new bounding box
-        this.boundingBox = new THREE.Box3();
-        
         // Update the collision mesh's matrix
         this.collisionMesh.updateMatrixWorld(true);
         
-        // Compute the bounding box in world space
-        this.boundingBox.setFromObject(this.collisionMesh);
+        // First create a temporary bounding box to help calculate the sphere
+        const tempBox = new THREE.Box3().setFromObject(this.collisionMesh);
         
-        // Add minimal padding for more precise collision
-        const padding = 0.2 * this.scale; // Reduced padding for more precise hits
-        this.boundingBox.min.subScalar(padding);
-        this.boundingBox.max.addScalar(padding);
-        
-        // Create bounding sphere from box
+        // Create bounding sphere directly (our primary collision shape)
         this.boundingSphere = new THREE.Sphere();
-        this.boundingBox.getBoundingSphere(this.boundingSphere);
+        tempBox.getBoundingSphere(this.boundingSphere);
         
-        debugHelper.log(`Asteroid: Collision initialized with box size: ${
-            (this.boundingBox.max.x - this.boundingBox.min.x).toFixed(1)} x ${
-            (this.boundingBox.max.y - this.boundingBox.min.y).toFixed(1)} x ${
-            (this.boundingBox.max.z - this.boundingBox.min.z).toFixed(1)}`);
+        // Shrink the sphere significantly for more precise collisions
+        this.boundingSphere.radius *= 0.4; // Reduce radius to 40% of original size
+        
+        // We'll keep a bounding box too for compatibility, but derived from the sphere
+        this.boundingBox = new THREE.Box3(
+            new THREE.Vector3(
+                this.boundingSphere.center.x - this.boundingSphere.radius,
+                this.boundingSphere.center.y - this.boundingSphere.radius,
+                this.boundingSphere.center.z - this.boundingSphere.radius
+            ),
+            new THREE.Vector3(
+                this.boundingSphere.center.x + this.boundingSphere.radius,
+                this.boundingSphere.center.y + this.boundingSphere.radius,
+                this.boundingSphere.center.z + this.boundingSphere.radius
+            )
+        );
+        
+        // Update visualization for debugging
+        const visualizer = debugVisualizer.getInstance();
+        if (visualizer) {
+            // Use the enhanced asteroid visualization
+            visualizer.visualizeAsteroid(this);
+        }
+        
+        debugHelper.log(`Asteroid: Collision initialized with sphere radius: ${
+            this.boundingSphere.radius.toFixed(1)} at center (${
+            this.boundingSphere.center.x.toFixed(1)}, ${
+            this.boundingSphere.center.y.toFixed(1)}, ${
+            this.boundingSphere.center.z.toFixed(1)})`);
     }
     
     /**
@@ -261,51 +282,67 @@ export class Asteroid {
     }
     
     /**
-     * Update the bounding box to match current position and rotation
+     * Update the bounding sphere and box to match current position and rotation
      */
     updateBoundingBox() {
         if (!this.collisionMesh) {
-            debugHelper.log("Asteroid: Cannot update bounding box - no collision mesh");
+            debugHelper.log("Asteroid: Cannot update collision - no collision mesh");
             return;
         }
         
         if (!this.isModelLoaded) {
-            debugHelper.log("Asteroid: Cannot update bounding box - model not loaded");
+            debugHelper.log("Asteroid: Cannot update collision - model not loaded");
             return;
-        }
-        
-        // Create bounding box if it doesn't exist
-        if (!this.boundingBox) {
-            this.boundingBox = new THREE.Box3();
-            debugHelper.log("Asteroid: Created new bounding box");
         }
         
         // Update the collision mesh's world matrix
         this.collisionMesh.updateMatrixWorld(true);
         
-        // Update the bounding box in world space
-        this.boundingBox.setFromObject(this.collisionMesh);
+        // First create a temporary bounding box to help calculate the sphere
+        const tempBox = new THREE.Box3().setFromObject(this.collisionMesh);
         
-        // Use a much smaller padding for more precise collision detection
-        // This will make missiles hit closer to the actual visual model
-        const padding = 0.2 * this.scale; // Reduced from 1.0 to 0.2
-        this.boundingBox.min.subScalar(padding);
-        this.boundingBox.max.addScalar(padding);
-        
-        // Update bounding sphere
+        // Create or update bounding sphere
         if (!this.boundingSphere) {
             this.boundingSphere = new THREE.Sphere();
             debugHelper.log("Asteroid: Created new bounding sphere");
         }
         
-        this.boundingBox.getBoundingSphere(this.boundingSphere);
+        // Update the bounding sphere from the temp box
+        tempBox.getBoundingSphere(this.boundingSphere);
         
-        // Occasionally log bounding box size for debugging
+        // Shrink the sphere significantly for more precise collisions
+        this.boundingSphere.radius *= 0.4; // Reduce radius to 40% of original size
+        
+        // Update or create the bounding box based on the sphere
+        if (!this.boundingBox) {
+            this.boundingBox = new THREE.Box3();
+            debugHelper.log("Asteroid: Created new bounding box from sphere");
+        }
+        
+        // Set the box from the sphere for compatibility
+        this.boundingBox.set(
+            new THREE.Vector3(
+                this.boundingSphere.center.x - this.boundingSphere.radius,
+                this.boundingSphere.center.y - this.boundingSphere.radius,
+                this.boundingSphere.center.z - this.boundingSphere.radius
+            ),
+            new THREE.Vector3(
+                this.boundingSphere.center.x + this.boundingSphere.radius,
+                this.boundingSphere.center.y + this.boundingSphere.radius,
+                this.boundingSphere.center.z + this.boundingSphere.radius
+            )
+        );
+        
+        // Update visualization for debugging
+        const visualizer = debugVisualizer.getInstance();
+        if (visualizer) {
+            // Use the enhanced asteroid visualization
+            visualizer.visualizeAsteroid(this);
+        }
+        
+        // Occasionally log collision shape info for debugging
         if (Math.random() < 0.01) {
-            debugHelper.log(`Asteroid: Updated bounding box at (${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}, ${this.position.z.toFixed(1)}) with size: ${
-                (this.boundingBox.max.x - this.boundingBox.min.x).toFixed(1)} x ${
-                (this.boundingBox.max.y - this.boundingBox.min.y).toFixed(1)} x ${
-                (this.boundingBox.max.z - this.boundingBox.min.z).toFixed(1)}`);
+            debugHelper.log(`Asteroid: Updated collision at (${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}, ${this.position.z.toFixed(1)}) with sphere radius: ${this.boundingSphere.radius.toFixed(1)}`);
         }
     }
     
@@ -467,7 +504,61 @@ export class Asteroid {
      * Remove this asteroid from the scene
      */
     remove() {
-        this.scene.remove(this.asteroidGroup);
+        // Clear debug visualizations
+        const visualizer = debugVisualizer.getInstance();
+        if (visualizer && this.id) {
+            visualizer.removeVisualization(this.id);
+        }
+        
+        // Remove the asteroid group from the scene
+        if (this.asteroidGroup.parent) {
+            this.scene.remove(this.asteroidGroup);
+        }
+        
         this.markedForRemoval = true;
+    }
+    
+    /**
+     * Check if this asteroid collides with the given bounding box
+     * @param {THREE.Box3} boundingBox - The bounding box to check collision with
+     * @returns {boolean} - Whether there's a collision
+     */
+    checkCollision(boundingBox) {
+        if (!this.isModelLoaded || !this.boundingSphere || !boundingBox) {
+            return false;
+        }
+        
+        // For collision detection purposes, we'll use a slightly larger radius than what's visualized
+        // This helps prevent visual artifacts while keeping collisions nearly pixel-perfect
+        const collisionRadius = this.boundingSphere.radius * 1.1; // Reduced from 2.5x to 1.1x for pixel-perfect collisions
+        
+        // First, do a quick check if the box is entirely outside the expanded sphere
+        const sphereBox = new THREE.Box3(
+            new THREE.Vector3(
+                this.boundingSphere.center.x - collisionRadius,
+                this.boundingSphere.center.y - collisionRadius,
+                this.boundingSphere.center.z - collisionRadius
+            ),
+            new THREE.Vector3(
+                this.boundingSphere.center.x + collisionRadius,
+                this.boundingSphere.center.y + collisionRadius,
+                this.boundingSphere.center.z + collisionRadius
+            )
+        );
+        
+        // Quick rejection test - if boxes don't intersect, there's no collision
+        if (!boundingBox.intersectsBox(sphereBox)) {
+            return false;
+        }
+        
+        // For more precise sphere collision, check if the closest point on the box is within the expanded sphere
+        const closestPoint = new THREE.Vector3();
+        boundingBox.clampPoint(this.boundingSphere.center, closestPoint);
+        
+        const distanceSquared = this.boundingSphere.center.distanceToSquared(closestPoint);
+        const radiusSquared = collisionRadius * collisionRadius;
+        
+        // If the closest point on the box is within the expanded sphere's radius, we have a collision
+        return distanceSquared <= radiusSquared;
     }
 } 

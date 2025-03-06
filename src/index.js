@@ -4,6 +4,7 @@ import { Player } from './entities/Player.js';
 import { ResourceManager } from './utils/ResourceManager.js';
 import { EnemyManager } from './entities/EnemyManager.js';
 import debugHelper from './utils/DebugHelper.js';
+import debugVisualizer from './utils/DebugVisualizer.js';
 
 class Game {
     constructor() {
@@ -11,6 +12,15 @@ class Game {
         
         try {
             this.initThree();
+            // Initialize debug visualizer with the scene
+            debugVisualizer.init(this.scene);
+            const visualizer = debugVisualizer.getInstance();
+            if (visualizer) {
+                // Debug visualization is disabled by default
+                // To enable, uncomment: visualizer.toggle(true);
+            }
+            debugHelper.log("Debug visualizer initialized");
+            
             this.initResourceManager(); // This will call initEnemyManager and initPlayer when resources are loaded
             this.initEventListeners();
             this.animate();
@@ -212,6 +222,18 @@ class Game {
             this.camera.aspect = window.innerWidth / window.innerHeight;
             this.camera.updateProjectionMatrix();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Add keyboard listener for debug controls
+        window.addEventListener('keydown', (event) => {
+            // Toggle debug visualization with 'V' key
+            if (event.key === 'v' || event.key === 'V') {
+                const visualizer = debugVisualizer.getInstance();
+                if (visualizer) {
+                    visualizer.toggle();
+                    debugHelper.log(`Debug visualization ${visualizer.enabled ? 'enabled' : 'disabled'}`);
+                }
+            }
         });
     }
 

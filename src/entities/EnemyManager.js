@@ -554,8 +554,8 @@ export class EnemyManager {
         
         // Check collision with each loaded asteroid
         for (const asteroid of this.entities.loadedAsteroids) {
-            // Only check asteroids that have a valid boundingBox
-            if (asteroid.boundingBox && boundingBox.intersectsBox(asteroid.boundingBox)) {
+            // Use the asteroid's new checkCollision method for sphere-based collision
+            if (asteroid && asteroid.checkCollision && asteroid.checkCollision(boundingBox)) {
                 // Return the asteroidGroup which has the userData property
                 return asteroid.asteroidGroup || asteroid;
             }

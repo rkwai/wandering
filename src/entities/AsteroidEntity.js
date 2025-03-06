@@ -213,7 +213,7 @@ export class AsteroidEntity extends Entity {
         this.physics.boundingBox.setFromObject(this.model);
         
         // Add a small padding to the bounding box for better collision detection
-        const padding = 1.0;
+        const padding = 0.8;
         this.physics.boundingBox.min.subScalar(padding);
         this.physics.boundingBox.max.addScalar(padding);
     }
