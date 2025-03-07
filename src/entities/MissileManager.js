@@ -59,7 +59,6 @@ export class MissileManager {
      * Load the missile model
      */
     loadMissileModel() {
-        debugHelper.log("Loading missile model...");
         this.modelLoader.loadModel('models/spaceships/spaceship_missile_0304125431.glb', (model) => {
             // Ensure model is properly set up
             model.traverse(child => {
@@ -93,8 +92,6 @@ export class MissileManager {
             
             // Initialize the missile pool
             this.initMissilePool();
-            
-            debugHelper.log("Missile model loaded successfully");
         }, (error) => {
             debugHelper.log("Failed to load missile model: " + error, "error");
             // Do not create a fallback model
@@ -152,8 +149,6 @@ export class MissileManager {
             },
             20 // Pool size
         );
-        
-        debugHelper.log("Missile pool initialized with 20 missiles");
     }
     
     /**
@@ -183,7 +178,6 @@ export class MissileManager {
                 this.collisionSound.setVolume(0.7);
                 
                 this.soundsLoaded = true;
-                debugHelper.log("Missile sounds loaded successfully");
             }, undefined, (error) => {
                 debugHelper.log("Failed to load missile hit sound: " + error, "error");
             });
@@ -219,8 +213,6 @@ export class MissileManager {
             debugHelper.log("No missiles available in pool");
             return false;
         }
-        
-        debugHelper.log("Firing missile");
         
         // Set up the missile
         missile.visible = true;
@@ -259,7 +251,6 @@ export class MissileManager {
                 this.missileSound.stop();
             }
             this.missileSound.play();
-            debugHelper.log("Missile launch sound played");
         } else {
             debugHelper.log("Missile sound not loaded or unavailable");
         }
@@ -281,8 +272,6 @@ export class MissileManager {
      * Load the explosion model
      */
     loadExplosionModel() {
-        debugHelper.log("MissileManager: Loading explosion model");
-        
         // Define potential model paths to try
         const explosionModelPaths = [
             'models/spaceships/impact_explosion_no__0305031045.glb',
@@ -306,11 +295,9 @@ export class MissileManager {
         }
         
         const path = paths[index];
-        debugHelper.log(`MissileManager: Trying to load explosion model from path: ${path}`);
         
         this.modelLoader.loadModel(path, 
             (model) => {
-                debugHelper.log(`MissileManager: Explosion model loaded successfully from ${path}`);
                 this.explosionModel = model;
                 
                 // Check if model is null or empty
@@ -320,18 +307,12 @@ export class MissileManager {
                     return;
                 }
                 
-                // Log model structure
-                debugHelper.log(`MissileManager: Explosion model structure: ${model.children.length} children`);
-                
                 // Set up the explosion model
                 model.visible = false; // Hide the template model
                 
                 // Make explosion materials emissive and bright
                 model.traverse(child => {
                     if (child.isMesh && child.material) {
-                        // Log mesh found
-                        debugHelper.log(`MissileManager: Found mesh in explosion model: ${child.name}`);
-                        
                         // Clone the material to avoid sharing
                         child.material = child.material.clone();
                         
@@ -384,8 +365,6 @@ export class MissileManager {
                 
                 // Initialize explosions array
                 this.activeExplosions = [];
-                
-                debugHelper.log("MissileManager: Explosion system initialized");
             }, 
             (error) => {
                 debugHelper.log(`MissileManager: Failed to load explosion model from ${path}: ${error}`, "error");
@@ -402,8 +381,6 @@ export class MissileManager {
     createExplosion(position) {
         // Play the sound effect
         this.playCollisionSound();
-        
-        debugHelper.log(`MissileManager: Creating explosion at position: ${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)}`);
         
         // If we have an explosion model and pool, create a visual explosion
         if (this.explosionModel && this.explosionPool) {
@@ -447,13 +424,9 @@ export class MissileManager {
                 
                 // Add to active explosions
                 this.activeExplosions.push(explosion);
-                
-                debugHelper.log(`MissileManager: Visual explosion created, ${this.activeExplosions.length} active explosions`);
             } catch (error) {
                 debugHelper.log(`MissileManager: Error creating explosion: ${error}`, "error");
             }
-        } else {
-            debugHelper.log("MissileManager: No explosion model available, skipping visual effect");
         }
     }
     
@@ -463,11 +436,6 @@ export class MissileManager {
      */
     updateExplosions(delta) {
         if (!this.activeExplosions || this.activeExplosions.length === 0) return;
-        
-        // Debug logging for active explosions (limit frequency)
-        if (Math.random() < 0.01) {
-            debugHelper.log(`MissileManager: Updating ${this.activeExplosions.length} active explosions`);
-        }
         
         for (let i = this.activeExplosions.length - 1; i >= 0; i--) {
             const explosion = this.activeExplosions[i];
@@ -485,7 +453,6 @@ export class MissileManager {
                 
                 // Remove from active list
                 this.activeExplosions.splice(i, 1);
-                debugHelper.log(`MissileManager: Explosion removed, ${this.activeExplosions.length} remaining`);
                 continue;
             }
             
@@ -524,11 +491,6 @@ export class MissileManager {
      * @param {Function} collisionCallback - Callback for collision detection
      */
     update(delta, collisionCallback) {
-        // Debug logging for missile count (occasionally)
-        if (Math.random() < 0.01) {
-            debugHelper.log(`MissileManager: Updating ${this.missiles.length} missiles`);
-        }
-        
         // Process each missile
         for (let i = this.missiles.length - 1; i >= 0; i--) {
             const missile = this.missiles[i];
@@ -581,18 +543,15 @@ export class MissileManager {
                 const collisionResult = collisionCallback(missile, missile.userData.boundingBox);
                 if (collisionResult) {
                     // Missile hit something, remove it
-                    debugHelper.log(`MissileManager: Missile collision detected, removing missile`);
                     this.scene.remove(missile);
                     this.missiles.splice(i, 1);
                     this.missilePool.release(missile);
                     
                     // Create explosion at impact point
                     if (collisionResult.position) {
-                        debugHelper.log(`MissileManager: Creating explosion at impact point (${collisionResult.position.x.toFixed(1)}, ${collisionResult.position.y.toFixed(1)}, ${collisionResult.position.z.toFixed(1)})`);
                         this.createExplosion(collisionResult.position);
                     } else {
                         // Fallback to missile position if no impact point provided
-                        debugHelper.log(`MissileManager: No impact point provided, using missile position for explosion`);
                         this.createExplosion(missile.position.clone());
                     }
                 }

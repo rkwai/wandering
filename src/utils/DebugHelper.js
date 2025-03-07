@@ -7,6 +7,9 @@ export class DebugHelper {
         this.modelLoadingStatus = {};
         this.errors = [];
         
+        // Add a flag to control verbosity of info logs
+        this.verboseLogging = false;
+        
         // Create debug overlay if in debug mode
         if (this.isDebugMode) {
             this.createDebugOverlay();
@@ -71,6 +74,27 @@ export class DebugHelper {
      * @param {string} type - The type of message (info, warn, error)
      */
     log(message, type = 'info') {
+        // Filter out less important info logs when not in verbose mode
+        if (type === 'info' && !this.verboseLogging) {
+            // Check if this is an important message we want to keep
+            const isImportantMessage = 
+                // Keep initialization and loading messages
+                message.includes('initialized') || 
+                message.includes('loaded successfully') ||
+                // Keep error and warning related messages
+                message.includes('error') || 
+                message.includes('failed') ||
+                message.includes('warning') ||
+                // Keep game state changes
+                message.includes('Game Over') ||
+                message.includes('Level complete');
+                
+            // Skip non-important info logs
+            if (!isImportantMessage) {
+                return;
+            }
+        }
+        
         const timestamp = new Date().toLocaleTimeString();
         const formattedMessage = `[${timestamp}] ${message}`;
         
@@ -132,10 +156,12 @@ export class DebugHelper {
             timestamp: Date.now()
         };
         
-        const statusMessage = `Model ${modelId}: ${status}${details ? ' - ' + details : ''}`;
-        const messageType = status === 'error' ? 'error' : (status === 'loaded' ? 'info' : 'warn');
-        
-        this.log(statusMessage, messageType);
+        // Only log errors and successful loads
+        if (status === 'error' || (status === 'loaded' && this.verboseLogging)) {
+            const statusMessage = `Model ${modelId}: ${status}${details ? ' - ' + details : ''}`;
+            const messageType = status === 'error' ? 'error' : 'info';
+            this.log(statusMessage, messageType);
+        }
     }
     
     /**

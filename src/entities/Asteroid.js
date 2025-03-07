@@ -81,22 +81,16 @@ export class Asteroid {
         
         // Load the asteroid model
         this.loadModel();
-        
-        debugHelper.log(`Asteroid: Created at position (${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}, ${this.position.z.toFixed(1)})`);
     }
     
     /**
      * Load the asteroid model from ResourceManager or directly if ResourceManager is not available
      */
     loadModel() {
-        debugHelper.log("Asteroid: Loading asteroid model...");
-        
         // Try to get the model from ResourceManager first
         if (this.resourceManager) {
-            debugHelper.log("Asteroid: Trying to get model from ResourceManager");
             const model = this.resourceManager.getAsteroidModel();
             if (model) {
-                debugHelper.log("Asteroid: Got model from ResourceManager");
                 this.setupModel(model);
                 return;
             } else {
@@ -123,8 +117,6 @@ export class Asteroid {
      * @param {THREE.Object3D} model - The asteroid model
      */
     setupModel(model) {
-        debugHelper.log("Asteroid: Setting up model");
-        
         // Success callback
         this.model = model;
         
@@ -186,9 +178,6 @@ export class Asteroid {
         // Initialize collision detection
         this.initializeCollision();
         
-        // Log the asteroid's position for debugging
-        debugHelper.log(`Asteroid: Model setup complete at position (${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}, ${this.position.z.toFixed(1)})`);
-        
         // Call the onLoaded callback if provided
         if (this.onLoaded) {
             this.onLoaded(this);
@@ -237,11 +226,6 @@ export class Asteroid {
             visualizer.visualizeAsteroid(this);
         }
         
-        debugHelper.log(`Asteroid: Collision initialized with sphere radius: ${
-            this.boundingSphere.radius.toFixed(1)} at center (${
-            this.boundingSphere.center.x.toFixed(1)}, ${
-            this.boundingSphere.center.y.toFixed(1)}, ${
-            this.boundingSphere.center.z.toFixed(1)})`);
     }
     
     /**
@@ -309,7 +293,6 @@ export class Asteroid {
         // Create or update bounding sphere
         if (!this.boundingSphere) {
             this.boundingSphere = new THREE.Sphere();
-            debugHelper.log("Asteroid: Created new bounding sphere");
         }
         
         // Update the bounding sphere from the temp box
@@ -321,7 +304,6 @@ export class Asteroid {
         // Update or create the bounding box based on the sphere
         if (!this.boundingBox) {
             this.boundingBox = new THREE.Box3();
-            debugHelper.log("Asteroid: Created new bounding box from sphere");
         }
         
         // Set the box from the sphere for compatibility
@@ -345,10 +327,6 @@ export class Asteroid {
             visualizer.visualizeAsteroid(this);
         }
         
-        // Occasionally log collision shape info for debugging
-        if (Math.random() < 0.01) {
-            debugHelper.log(`Asteroid: Updated collision at (${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}, ${this.position.z.toFixed(1)}) with sphere radius: ${this.boundingSphere.radius.toFixed(1)}`);
-        }
     }
     
     /**
@@ -380,10 +358,6 @@ export class Asteroid {
      */
     update(delta) {
         if (!this.isModelLoaded) {
-            // Log occasionally if model isn't loaded
-            if (Math.random() < 0.01) {
-                debugHelper.log("Asteroid: Update called but model not loaded yet");
-            }
             return;
         }
         
@@ -435,8 +409,6 @@ export class Asteroid {
         
         // Check if asteroid needs to be reset
         if (this.position.x < -200) {
-            // Log when asteroid goes off screen
-            debugHelper.log(`Asteroid: Reset triggered at position ${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}`);
             this.reset();
         }
     }
@@ -466,8 +438,6 @@ export class Asteroid {
      * Handle this asteroid being hit by a missile
      */
     handleHit() {
-        debugHelper.log(`Asteroid: Hit at position (${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}, ${this.position.z.toFixed(1)})`);
-        
         // Emit game event for scoring and effects
         if (window.gameEvents) {
             window.gameEvents.emit('enemyHit', {
@@ -500,9 +470,6 @@ export class Asteroid {
             if (this.lights.main) this.lights.main.intensity *= 3;
             if (this.lights.secondary) this.lights.secondary.intensity *= 3;
         }
-        
-        // Log successful hit
-        debugHelper.log("Asteroid: Hit effect applied");
     }
     
     /**

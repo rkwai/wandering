@@ -9,8 +9,6 @@ import { UIManager } from './ui/UIManager.js';
 
 class Game {
     constructor() {
-        debugHelper.log("Game initialization started...");
-        
         try {
             this.initThree();
             // Initialize debug visualizer with the scene
@@ -20,12 +18,10 @@ class Game {
                 // Debug visualization is disabled by default
                 // To enable, uncomment: visualizer.toggle(true);
             }
-            debugHelper.log("Debug visualizer initialized");
             
             // Initialize UI Manager
             this.uiManager = new UIManager();
             this.scoreDisplay = this.uiManager.createScoreDisplay(0);
-            debugHelper.log("UI Manager initialized");
             
             this.initResourceManager(); // This will call initEnemyManager and initPlayer when resources are loaded
             this.initEventListeners();
@@ -33,8 +29,6 @@ class Game {
             
             // Initialize player score
             this.score = 0;
-            
-            debugHelper.log("All game systems initialized successfully");
             
             // Display model loading summary after a short delay
             setTimeout(() => {
@@ -55,7 +49,6 @@ class Game {
         const loadingMessage = document.getElementById('loading-message');
         if (loadingMessage) {
             loadingMessage.textContent = message;
-            console.log("Loading status:", message);
         }
     }
 
@@ -199,7 +192,6 @@ class Game {
      */
     initEnemyManager() {
         try {
-            debugHelper.log("Initializing enemy manager...");
             this.enemyManager = new EnemyManager(this.scene, this.resourceManager);
         } catch (error) {
             debugHelper.log("Error initializing enemy manager: " + error.message, "error");
@@ -240,7 +232,6 @@ class Game {
                 const visualizer = debugVisualizer.getInstance();
                 if (visualizer) {
                     visualizer.toggle();
-                    debugHelper.log(`Debug visualization ${visualizer.enabled ? 'enabled' : 'disabled'}`);
                 }
             }
         });
@@ -265,11 +256,9 @@ class Game {
             
             // Update score if player score changes
             if (this.player.score !== undefined && this.score !== this.player.score) {
-                debugHelper.log(`Score changed: ${this.score} -> ${this.player.score}`);
                 this.score = this.player.score;
                 if (this.uiManager) {
                     this.uiManager.updateScore(this.score);
-                    debugHelper.log(`Updated UI score to: ${this.score}`);
                 }
             }
         }

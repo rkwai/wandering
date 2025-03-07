@@ -134,6 +134,7 @@ export class Player {
     loadSounds() {
         // Check if the audioListener is available
         if (!this.audioListener) {
+            // Keep this warning
             debugHelper.log("Audio listener not available, skipping sound loading", "warning");
             return;
         }
@@ -163,32 +164,36 @@ export class Player {
             // Load engine sound
             audioLoader.load('assets/sounds/engine_hum.mp3', (buffer) => {
                 this.engineSound.setBuffer(buffer);
-                debugHelper.log("Engine sound loaded");
+                // Remove verbose log
             }, null, (error) => {
+                // Keep error logs
                 debugHelper.log("Error loading engine sound: " + error.message, "error");
             });
             
             // Load missile sound
             audioLoader.load('assets/sounds/missile_launch.mp3', (buffer) => {
                 this.missileSound.setBuffer(buffer);
-                debugHelper.log("Missile sound loaded");
+                // Remove verbose log
             }, null, (error) => {
+                // Keep error logs
                 debugHelper.log("Error loading missile sound: " + error.message, "error");
             });
             
             // Load collision sound
             audioLoader.load('assets/sounds/impact.mp3', (buffer) => {
                 this.collisionSound.setBuffer(buffer);
-                debugHelper.log("Collision sound loaded");
+                // Remove verbose log
             }, null, (error) => {
+                // Keep error logs
                 debugHelper.log("Error loading collision sound: " + error.message, "error");
             });
             
             // Add sounds to the model when it's created
             this.soundsLoaded = true;
             
-            debugHelper.log("Player sounds initialized");
+            // Remove verbose log
         } catch (error) {
+            // Keep error logs
             debugHelper.log("Error initializing sounds: " + error.message, "error");
             // Game can continue without sounds
             this.soundsLoaded = false;
@@ -199,7 +204,7 @@ export class Player {
      * Loads the ship GLB model
      */
     loadShipModel() {
-        debugHelper.log("Loading spaceship model...");
+        // Remove verbose log
         
         // Load the spaceship model
         this.modelLoader.loadModel('models/spaceships/spaceship_0304124415.glb', (model) => {
@@ -260,9 +265,9 @@ export class Player {
                 visualizer.visualizeBox(this.boundingBox, 'player', 'player');
             }
             
-            debugHelper.log("Spaceship model loaded successfully!");
+            // Remove verbose log
         }, (error) => {
-            // Error callback
+            // Keep error logs
             debugHelper.log("Failed to load spaceship model: " + error.message, "error");
             
             // Create a simple placeholder ship
@@ -294,7 +299,7 @@ export class Player {
         // Make sure keys object is synchronized with inputControls
         this.keys = this.inputControls;
         
-        console.log("Input listeners set up successfully");
+        // Remove console log
     }
     
     /**
@@ -668,39 +673,47 @@ export class Player {
         this.camera.lookAt(this.position.x + lookAheadOffset, this.position.y, 0);
     }
     
+    /**
+     * Check for collisions with other objects
+     */
     checkCollisions() {
-        // Only check collisions if cooldown is inactive and boundingBox exists
-        if (this.collisionCooldown <= 0 && this.boundingBox) {
-            // Check if our bounding box intersects with any debris or asteroids
-            this.scene.traverse((object) => {
-                if (object.userData && (object.userData.isDebris || object.userData.isAsteroid)) {
-                    try {
-                        // Get asteroid reference if available
-                        const asteroid = object.userData.asteroidRef;
-                        
-                        if (asteroid && asteroid.checkCollision) {
-                            // Use the asteroid's sphere-based collision detection
-                            if (asteroid.checkCollision(this.boundingBox)) {
-                                // Handle collision with the asteroid
-                                this.handleCollision(object);
-                            }
-                        } else {
-                            // Fallback to box-based collision for other objects
-                            const debrisBoundingBox = new THREE.Box3().setFromObject(object);
+        try {
+            // Only check collisions if cooldown is inactive and boundingBox exists
+            if (this.collisionCooldown <= 0 && this.boundingBox) {
+                // Check if our bounding box intersects with any debris or asteroids
+                this.scene.traverse((object) => {
+                    if (object.userData && (object.userData.isDebris || object.userData.isAsteroid)) {
+                        try {
+                            // Get asteroid reference if available
+                            const asteroid = object.userData.asteroidRef;
                             
-                            // Check for intersection
-                            if (this.boundingBox.intersectsBox(debrisBoundingBox)) {
-                                // Handle collision
-                                this.handleCollision(object);
+                            if (asteroid && asteroid.checkCollision) {
+                                // Use the asteroid's sphere-based collision detection
+                                if (asteroid.checkCollision(this.boundingBox)) {
+                                    // Handle collision with the asteroid
+                                    this.handleCollision(object);
+                                }
+                            } else {
+                                // Fallback to box-based collision for other objects
+                                const debrisBoundingBox = new THREE.Box3().setFromObject(object);
+                                
+                                // Check for intersection
+                                if (this.boundingBox.intersectsBox(debrisBoundingBox)) {
+                                    // Handle collision
+                                    this.handleCollision(object);
+                                }
                             }
+                        } catch (error) {
+                            // Silently ignore errors during collision detection
+                            // This can happen if objects are being removed or not fully loaded
+                            debugHelper.log("Collision detection error: " + error.message, "error");
                         }
-                    } catch (error) {
-                        // Silently ignore errors during collision detection
-                        // This can happen if objects are being removed or not fully loaded
-                        debugHelper.log("Collision detection error: " + error.message, "error");
                     }
-                }
-            });
+                });
+            }
+        } catch (error) {
+            // Keep error logs
+            debugHelper.log("Collision detection error: " + error.message, "error");
         }
     }
     
@@ -738,8 +751,10 @@ export class Player {
             }
         }
         
-        // Log the mass for debugging
-        debugHelper.log(`Collision with ${debrisType} of mass: ${debrisMass.toFixed(1)}`);
+        // Only log significant collisions
+        if (debrisMass > 100) {
+            debugHelper.log(`Collision with ${debrisType} of mass: ${debrisMass.toFixed(1)}`);
+        }
         
         // Calculate impact based on relative velocity and mass
         const relativeVelocity = this.velocity.length();
@@ -793,8 +808,8 @@ export class Player {
             damage = 5;
         }
         
-        // Log the calculated damage
-        debugHelper.log(`Calculated damage: ${damage.toFixed(1)} from object with mass ${debrisMass.toFixed(1)}`);
+        // Apply calculated damage (capped at 30% of max health per hit for gameplay)
+        damage = Math.min(damage, this.maxHealth * 0.3);
         
         // Apply damage to health
         this.health = Math.max(0, this.health - damage);
@@ -834,7 +849,6 @@ export class Player {
                 this.collisionSound.stop();
             }
             this.collisionSound.play();
-            debugHelper.log("Collision sound played");
         }
         
         // Set collision cooldown to prevent multiple impacts from same object
@@ -850,7 +864,7 @@ export class Player {
         // Create explosion at player position
         this.createExplosion(this.position);
         
-        // Log death event
+        // Keep important game state log
         debugHelper.log("Player died! Game Over!");
         
         // Hide the player ship
@@ -947,18 +961,17 @@ export class Player {
      * Shoot a missile
      */
     shootMissile() {
-        console.log("Attempting to fire missile");
-        
         try {
             // Use the missile manager to shoot a missile from the player's position
             const success = this.missileManager.shootMissile(this.position);
             
             if (success) {
-                console.log("Missile fired successfully");
+                // Remove console log
             } else {
-                console.log("Failed to fire missile (cooldown or not ready)");
+                // Remove console log
             }
         } catch (error) {
+            // Keep error logs
             console.error("Error shooting missile:", error);
         }
     }
@@ -1103,7 +1116,7 @@ export class Player {
             Object.assign(this.camera, newCamera);
         }
         
-        console.log("Side-scroller camera set up");
+        // Remove console log
     }
     
     /**
@@ -1112,7 +1125,7 @@ export class Player {
     loadImpactExplosionModel() {
         // Use the MissileManager for explosions instead of loading our own
         this.impactExplosionModel = null;
-        console.log("Impact explosion model loading skipped - using MissileManager for explosions");
+        // Remove console.log
     }
     
     /**
