@@ -19,6 +19,9 @@ export class Player {
         this.rotationVelocity = new THREE.Vector3(0, 0, 0);
         this.quaternion = new THREE.Quaternion(); // Initialize quaternion for rotation
         
+        // Initialize player score
+        this.score = 0;
+        
         // Gradius-style side-scroller settings
         this.autoScrollSpeed = 30;       // Automatic scroll speed (how fast the world moves)
         this.verticalSpeed = 100;        // Vertical movement speed
@@ -764,9 +767,12 @@ export class Player {
                 
                 // Call handleHit for any additional asteroid destruction effects
                 if (typeof asteroid.handleHit === 'function') {
+                    debugHelper.log(`Calling asteroid.handleHit for asteroid with mass: ${asteroid.mass || 'undefined'}`);
                     asteroid.handleHit();
+                } else {
+                    debugHelper.log('Asteroid has no handleHit method');
                 }
-                
+                                                
                 // Remove the asteroid
                 asteroid.remove();
             } else if (userData.isAsteroid) {
@@ -1019,7 +1025,20 @@ export class Player {
                                 
                                 // Call the asteroid's handleHit method if it exists
                                 if (typeof asteroid.handleHit === 'function') {
+                                    debugHelper.log(`Calling asteroid.handleHit for asteroid with mass: ${asteroid.mass || 'undefined'}`);
                                     asteroid.handleHit();
+                                } else {
+                                    debugHelper.log('Asteroid has no handleHit method');
+                                }
+                                
+                                // Increase player score based on asteroid mass
+                                if (this.score !== undefined && asteroid.mass) {
+                                    const scoreValue = Math.floor(asteroid.mass); // Double points for shooting vs collision
+                                    const oldScore = this.score;
+                                    this.score += scoreValue;
+                                    debugHelper.log(`Player score increased from ${oldScore} to ${this.score} (+${scoreValue}) for missile hit`);
+                                } else {
+                                    debugHelper.log(`Could not update score: score=${this.score !== undefined}, asteroid.mass=${asteroid.mass || 'undefined'}`);
                                 }
                                 
                                 // Create explosion at the actual impact point on asteroid surface

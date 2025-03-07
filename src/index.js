@@ -5,6 +5,7 @@ import { ResourceManager } from './utils/ResourceManager.js';
 import { EnemyManager } from './entities/EnemyManager.js';
 import debugHelper from './utils/DebugHelper.js';
 import debugVisualizer from './utils/DebugVisualizer.js';
+import { UIManager } from './ui/UIManager.js';
 
 class Game {
     constructor() {
@@ -21,9 +22,17 @@ class Game {
             }
             debugHelper.log("Debug visualizer initialized");
             
+            // Initialize UI Manager
+            this.uiManager = new UIManager();
+            this.scoreDisplay = this.uiManager.createScoreDisplay(0);
+            debugHelper.log("UI Manager initialized");
+            
             this.initResourceManager(); // This will call initEnemyManager and initPlayer when resources are loaded
             this.initEventListeners();
             this.animate();
+            
+            // Initialize player score
+            this.score = 0;
             
             debugHelper.log("All game systems initialized successfully");
             
@@ -253,6 +262,16 @@ class Game {
         // Update player first for responsive controls
         if (this.player) {
             this.player.update(delta);
+            
+            // Update score if player score changes
+            if (this.player.score !== undefined && this.score !== this.player.score) {
+                debugHelper.log(`Score changed: ${this.score} -> ${this.player.score}`);
+                this.score = this.player.score;
+                if (this.uiManager) {
+                    this.uiManager.updateScore(this.score);
+                    debugHelper.log(`Updated UI score to: ${this.score}`);
+                }
+            }
         }
         
         // Update enemy manager

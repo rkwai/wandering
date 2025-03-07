@@ -35,13 +35,20 @@ export class UISystem {
      */
     createScoreElement() {
         this.scoreElement = document.createElement('div');
-        this.scoreElement.style.position = 'absolute';
-        this.scoreElement.style.top = '20px';
-        this.scoreElement.style.right = '20px';
-        this.scoreElement.style.fontSize = '24px';
-        this.scoreElement.style.fontFamily = 'Arial, sans-serif';
-        this.scoreElement.style.color = '#fff';
-        this.scoreElement.style.textShadow = '0 0 5px #33f';
+        this.scoreElement.className = 'score-display';
+        
+        // Create label
+        const scoreLabel = document.createElement('span');
+        scoreLabel.textContent = 'SCORE:';
+        
+        // Create value element
+        this.scoreValueElement = document.createElement('span');
+        this.scoreValueElement.className = 'score-value';
+        this.scoreValueElement.textContent = '0';
+        
+        // Add to DOM
+        this.scoreElement.appendChild(scoreLabel);
+        this.scoreElement.appendChild(this.scoreValueElement);
         this.container.appendChild(this.scoreElement);
     }
     
@@ -50,13 +57,20 @@ export class UISystem {
      */
     createLivesElement() {
         this.livesElement = document.createElement('div');
-        this.livesElement.style.position = 'absolute';
-        this.livesElement.style.top = '20px';
-        this.livesElement.style.left = '20px';
-        this.livesElement.style.fontSize = '24px';
-        this.livesElement.style.fontFamily = 'Arial, sans-serif';
-        this.livesElement.style.color = '#fff';
-        this.livesElement.style.textShadow = '0 0 5px #f33';
+        this.livesElement.className = 'lives-display';
+        
+        // Create label
+        const livesLabel = document.createElement('span');
+        livesLabel.textContent = 'LIVES:';
+        
+        // Create value element
+        this.livesValueElement = document.createElement('span');
+        this.livesValueElement.className = 'lives-value';
+        this.livesValueElement.textContent = '3';
+        
+        // Add to DOM
+        this.livesElement.appendChild(livesLabel);
+        this.livesElement.appendChild(this.livesValueElement);
         this.container.appendChild(this.livesElement);
     }
     
@@ -71,10 +85,16 @@ export class UISystem {
         this.messageElement.style.transform = 'translate(-50%, -50%)';
         this.messageElement.style.fontSize = '36px';
         this.messageElement.style.fontFamily = 'Arial, sans-serif';
-        this.messageElement.style.color = '#fff';
-        this.messageElement.style.textShadow = '0 0 10px #f80';
+        this.messageElement.style.color = 'var(--ui-text-color)';
+        this.messageElement.style.textShadow = 'var(--ui-glow) var(--accent-color)';
         this.messageElement.style.textAlign = 'center';
         this.messageElement.style.display = 'none';
+        this.messageElement.style.padding = '20px 40px';
+        this.messageElement.style.backgroundColor = 'var(--ui-bg-color)';
+        this.messageElement.style.borderRadius = '10px';
+        this.messageElement.style.border = '2px solid var(--accent-color)';
+        this.messageElement.style.boxShadow = 'var(--ui-glow) var(--accent-color)';
+        this.messageElement.style.zIndex = '2000';
         this.container.appendChild(this.messageElement);
     }
     
@@ -117,16 +137,18 @@ export class UISystem {
      */
     updateScore(score) {
         this.score = score;
-        this.scoreElement.textContent = `SCORE: ${score}`;
+        // Format score with commas for thousands
+        const formattedScore = score.toLocaleString();
+        this.scoreValueElement.textContent = formattedScore;
     }
     
     /**
      * Update the lives display
-     * @param {number} lives - Remaining lives
+     * @param {number} lives - Current lives remaining
      */
     updateLives(lives) {
         this.lives = lives;
-        this.livesElement.textContent = `LIVES: ${lives}`;
+        this.livesValueElement.textContent = lives;
     }
     
     /**
