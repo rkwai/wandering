@@ -764,7 +764,7 @@ export class Player {
         let damage = 0;
         if (isAsteroid || debrisType === 'asteroid') {
             // Damage based on asteroid size/mass
-            damage = debrisMass * 2; // Larger asteroids do more damage
+            damage = debrisMass; // Larger asteroids do more damage
             
             // Get the asteroid reference and destroy it
             if (userData.asteroidRef) {
@@ -807,10 +807,7 @@ export class Player {
             // Generic damage for other types
             damage = 5;
         }
-        
-        // Apply calculated damage (capped at 30% of max health per hit for gameplay)
-        damage = Math.min(damage, this.maxHealth * 0.3);
-        
+                
         // Apply damage to health
         this.health = Math.max(0, this.health - damage);
         

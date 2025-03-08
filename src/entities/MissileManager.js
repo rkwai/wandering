@@ -219,7 +219,7 @@ export class MissileManager {
         
         // Position the missile
         missile.position.copy(position);
-        missile.position.x += 20; // Position in front of the ship
+        missile.position.x += 10 ; // Position in front of the ship
         
         // Reset rotation and ensure missile points right
         missile.rotation.set(0, 0, 0);
